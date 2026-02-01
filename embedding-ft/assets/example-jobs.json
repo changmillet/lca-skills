@@ -1,0 +1,11 @@
+[
+  {
+    "jobId": 101,
+    "id": "11111111-2222-3333-4444-555555555555",
+    "version": "v1",
+    "schema": "public",
+    "table": "documents",
+    "contentFunction": "content_for_embedding",
+    "embeddingColumn": "embedding_ft"
+  }
+]

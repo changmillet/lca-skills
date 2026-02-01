@@ -1,0 +1,19 @@
+# Request/response
+
+## Input
+```json
+{
+  "query": "Mechanical recycling process for PET bottles",
+  "filter": {"region": "CN"}
+}
+```
+
+## Output
+- 200 `{ "data": [...] }` from `hybrid_search_processes` RPC or `[]` if none.
+- 400 if `query` missing; 500 on model/embedding/RPC errors.
+
+## RPC expectation
+- Function `hybrid_search_processes(query_text text, query_embedding text, filter_condition jsonb|text)`.
+
+## Auth
+- JWT, USER_API_KEY, SERVICE_API_KEY supported via `_shared/auth`.
