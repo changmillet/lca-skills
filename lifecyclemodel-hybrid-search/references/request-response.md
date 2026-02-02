@@ -17,4 +17,4 @@
 - Function `hybrid_search_lifecyclemodels(query_text text, query_embedding text, filter_condition jsonb|text)`.
 
 ## Auth
-- Deployed with `--no-verify-jwt`; request does not require `Authorization` / `apikey`.
+- 调用无需 `Authorization` / `apikey`。

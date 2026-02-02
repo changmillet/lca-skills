@@ -6,10 +6,9 @@ description: Supabase edge function supabase/functions/process_hybrid_search tha
 # Process Hybrid Search
 
 ## Quick start (remote only)
-- 固定配置：
-  - `REMOTE_ENDPOINT=https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/`
-  - `X_REGION=us-east-1`
-- 已以 `--no-verify-jwt` 部署，调用方**不需要** JWT（`Authorization` / `apikey`）。
+- Endpoint: `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/`
+- Header: `x-region: us-east-1`
+- 调用无需 `Authorization` / `apikey`。
 - 调用示例：
   ```bash
   curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/process_hybrid_search" \
@@ -17,17 +16,6 @@ description: Supabase edge function supabase/functions/process_hybrid_search tha
     --header 'x-region: us-east-1' \
     --data @assets/example-request.json
   ```
-- JS/TS（supabase-js）调用示例：
-  ```ts
-  import { createClient } from "@supabase/supabase-js";
-
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_ANON_KEY!);
-  const { data, error } = await supabase.functions.invoke("process_hybrid_search", {
-    body: { query: "steel scrap to furnace", filter: { country: "DE" } },
-    headers: { "x-region": "us-east-1" },
-  });
-  ```
-- supabase-js 会自动携带 anon key（`Authorization`），但函数不强制要求。
 - 模型/embedding 配置已在远端函数；调用方无需设置。
 
 ## Request & output
@@ -35,7 +23,7 @@ description: Supabase edge function supabase/functions/process_hybrid_search tha
 - Responses: 200 with `{ data }` or `[]`; 400 if `query` missing; 500 on embedding/RPC errors.
 
 ## Processing flow
-1) Handle OPTIONS for CORS; Edge runtime 未做 JWT 校验（部署使用 `--no-verify-jwt`）。
+1) Handle OPTIONS for CORS.
 2) ChatOpenAI structured output (semantic_query_en + fulltext_query_en/zh arrays) with process-focused LCA system prompt.
 3) Build OR-joined full-text string; embed `semantic_query_en` through SageMaker endpoint.
 4) Call `supabase.rpc('hybrid_search_processes', { query_text, query_embedding, filter_condition })`; non-string filters get `JSON.stringify`.
@@ -52,6 +40,5 @@ description: Supabase edge function supabase/functions/process_hybrid_search tha
 - `references/prompts.md`
 - `references/testing.md`
 
-## Assets & scripts
+## Assets
 - `assets/example-request.json`
-- `scripts/invoke_local.sh`

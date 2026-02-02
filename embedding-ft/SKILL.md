@@ -5,11 +5,16 @@ description: Process PGMQ embedding jobs in supabase/functions/embedding_ft; fet
 
 # Embedding FT
 
-## Quick start
-- Preconditions: Supabase CLI running with `SUPABASE_DB_URL`; AWS creds + `SAGEMAKER_ENDPOINT_NAME`; optional `AWS_SESSION_TOKEN` for temporary creds.
-- Run locally: `supabase functions serve embedding_ft --env-file ../../.env.local` from repo root.
-- Send test jobs: `./scripts/invoke_local.sh` (uses `assets/example-jobs.json`).
-- Logs show per-job `id`, `version`, `jobId`, table, and `contentFunction` to trace flow.
+## Quick start (remote only)
+- Endpoint: `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/embedding_ft`
+- 调用无需 `Authorization` / `apikey`。
+- 调用示例：
+  ```bash
+  curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/embedding_ft" \
+    --header 'Content-Type: application/json' \
+    --data @assets/example-jobs.json
+  ```
+- AWS/Supabase 连接配置已在远端函数环境中设置，调用方无需提供。
 
 ## Request contract (HTTP POST JSON)
 Array of jobs, each:
@@ -37,10 +42,9 @@ Array of jobs, each:
 - Extend payload: update `jobSchema` and downstream SQL bindings.
 
 ## References
-- `references/env.md` — required env vars and local run commands.
+- `references/env.md` — required env vars.
 - `references/job-contract.md` — job shape, queue semantics, and expected DB side effects.
 - `references/testing.md` — curl examples and validation checklist.
 
-## Assets & scripts
+## Assets
 - `assets/example-jobs.json` — minimal valid request body.
-- `scripts/invoke_local.sh` — serve + curl helper for localhost testing.

@@ -1,9 +1,9 @@
 # Testing
 
 ```bash
-curl -i --location --request POST "$REMOTE_ENDPOINT/lifecyclemodel_hybrid_search" \
+curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/lifecyclemodel_hybrid_search" \
   --header 'Content-Type: application/json' \
-  --header "x-region: $X_REGION" \
+  --header 'x-region: us-east-1' \
   --data @assets/example-request.json
 ```
 

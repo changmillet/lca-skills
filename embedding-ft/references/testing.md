@@ -1,14 +1,9 @@
 # Testing & debugging
 
-## Local curl
 ```bash
-supabase functions serve embedding_ft --env-file ../../.env.local >/tmp/embedding_ft.log 2>&1 &
-FN_PID=$!
-curl -X POST \
-  -H 'Content-Type: application/json' \
-  -d @assets/example-jobs.json \
-  http://localhost:54321/functions/v1/embedding_ft
-kill $FN_PID
+curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/embedding_ft" \
+  --header 'Content-Type: application/json' \
+  --data @assets/example-jobs.json
 ```
 
 ## Checklist
