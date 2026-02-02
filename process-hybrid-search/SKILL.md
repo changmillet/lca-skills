@@ -5,36 +5,29 @@ description: Supabase edge function supabase/functions/process_hybrid_search tha
 
 # Process Hybrid Search
 
-## Quick start (remote only)
+## Required parameters
+- `data`: JSON payload containing the `query` string the user wants to search (optional `filter`).
+- `TIANGONG_LCA_APIKEY`: user key derived from email + password; send as `Authorization: Bearer <TIANGONG_LCA_APIKEY>`.
+
+## Quick start
 - Endpoint: `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/`
 - Header: `x-region: us-east-1`
-- Requires `Authorization: Bearer <TOKEN>`.
-- `TOKEN` is either an OAuth JWT or a user key generated in the system (derived from email + password).
+- Requires `Authorization: Bearer <TIANGONG_LCA_APIKEY>`.
+- Body: JSON with `query` string (optional `filter`); `assets/example-request.json` shows the format.
+
 - Example call:
   ```bash
-  curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/process_hybrid_search" \
+  curl -sS --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/process_hybrid_search" \
     --header 'Content-Type: application/json' \
     --header 'x-region: us-east-1' \
-    --header "Authorization: Bearer $TOKEN" \
-    --data @assets/example-request.json
+    --header "Authorization: Bearer $TIANGONG_LCA_APIKEY" \
+    --data '{"query": "waste polyethylene mechanical recycling"}'
   ```
-- Model/embedding is configured in the deployed function; callers do not set it.
 
 ## Request & output
 - POST `{ "query": string, "filter"?: object|string }`.
 - Responses: 200 with `{ data }` or `[]`; 400 if `query` missing; 500 on embedding/RPC errors.
 
-## Processing flow
-1) Handle OPTIONS for CORS.
-2) ChatOpenAI structured output (semantic_query_en + fulltext_query_en/zh arrays) with process-focused LCA system prompt.
-3) Build OR-joined full-text string; embed `semantic_query_en` through SageMaker endpoint.
-4) Call `supabase.rpc('hybrid_search_processes', { query_text, query_embedding, filter_condition })`; non-string filters get `JSON.stringify`.
-5) Return results with CORS headers; errors logged and surfaced as JSON 500.
-
-## Change points
-- Update prompt/schema to capture additional process metadata (e.g., technology, geography).
-- Swap models/endpoints via env vars and SageMaker constants.
-- Adjust RPC name/params to target different index/table.
 
 ## References
 - `references/env.md`
