@@ -1,38 +1,29 @@
 ---
 name: flow-hybrid-search
-description: Supabase edge function supabase/functions/flow_hybrid_search that converts flow descriptions into hybrid search queries and calls `hybrid_search_flows`. Use when debugging flow search, tuning prompts/filters, or adjusting embedding endpoints/auth.
+description: Execute and troubleshoot Supabase edge function `flow_hybrid_search`, which rewrites flow descriptions and calls `hybrid_search_flows` with optional filters. Use when validating flow query/filter behavior, tuning retrieval prompts, or debugging auth, embedding, and RPC failures.
 ---
 
 # Flow Hybrid Search
 
-## Required parameters
-- `data`: JSON payload containing the `query` string the user wants to search (optional `filter`).
-- `TIANGONG_LCA_APIKEY`: user key derived from email + password; send as `Authorization: Bearer <TIANGONG_LCA_APIKEY>`.
+## Run Workflow
+1. Set `TIANGONG_LCA_APIKEY` or pass `--token`.
+2. Execute `scripts/run-flow-hybrid-search.sh` with a request JSON file.
+3. Confirm response shape, then debug with focused references.
 
-## Quick start
-- Endpoint: `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/`
-- Header: `x-region: us-east-1`
-- Requires `Authorization: Bearer <TIANGONG_LCA_APIKEY>`.
-- Body: JSON with `query` string (optional `filter`); `assets/example-request.json` shows the format.
+## Commands
+```bash
+scripts/run-flow-hybrid-search.sh --dry-run --token "$TIANGONG_LCA_APIKEY"
+scripts/run-flow-hybrid-search.sh --token "$TIANGONG_LCA_APIKEY"
+scripts/run-flow-hybrid-search.sh --data ./assets/example-request.json --token "$TIANGONG_LCA_APIKEY"
+```
 
-- Example call:
-  ```bash
-  curl -sS --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/flow_hybrid_search" \
-    --header 'Content-Type: application/json' \
-    --header 'x-region: us-east-1' \
-    --header "Authorization: Bearer $TIANGONG_LCA_APIKEY" \
-    --data '{"query": "methylbutane"}'
-  ```
+## Fast Triage
+- `400`: missing or invalid `query`.
+- `500`: embedding provider or `hybrid_search_flows` RPC failure.
+- Empty `data`: query/filter mismatch; inspect generated retrieval query and filter structure.
 
-## Request & output
-- POST `{ "query": string, "filter"?: object|string }`.
-- Responses: 200 with `{ data }` or `[]`; 400 if `query` missing; 500 on embedding/RPC errors.
-
-## References
-- `references/env.md`
-- `references/request-response.md`
-- `references/prompts.md` - prompt requirements for query generation.
-- `references/testing.md`
-
-## Assets
-- `assets/example-request.json`
+## Load References On Demand
+- `references/env.md`: auth, region, and endpoint overrides.
+- `references/request-response.md`: payload contract and RPC expectations.
+- `references/prompts.md`: query-rewrite prompt constraints.
+- `references/testing.md`: smoke test checklist.

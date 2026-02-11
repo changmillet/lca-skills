@@ -1,0 +1,4 @@
+interface:
+  display_name: "Process Hybrid Search"
+  short_description: "Debug and tune process hybrid search requests"
+  default_prompt: "Use $process-hybrid-search to validate process query, filter, and response behavior."

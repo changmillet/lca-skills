@@ -1,14 +1,16 @@
 # Testing
 
+## Preferred smoke test
 ```bash
-curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/flow_hybrid_search" \
-  --header 'Content-Type: application/json' \
-  --header 'x-region: us-east-1' \
-  --header "Authorization: Bearer $TIANGONG_LCA_APIKEY" \
-  --data @assets/example-request.json
+scripts/run-flow-hybrid-search.sh --token "$TIANGONG_LCA_APIKEY"
 ```
 
-Checklist:
-- 200 response; `data` array present or empty.
-- 400 only when `query` missing.
-- 500 indicates backend model/RPC issue (inspect Supabase logs).
+## Dry run (request preview)
+```bash
+scripts/run-flow-hybrid-search.sh --dry-run --token "$TIANGONG_LCA_APIKEY"
+```
+
+## Checklist
+- 200 response contains `data` (array, possibly empty).
+- 400 appears only when `query` is missing/invalid.
+- 500 indicates embedding provider or RPC failure (inspect Supabase logs).

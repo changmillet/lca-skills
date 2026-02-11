@@ -1,0 +1,4 @@
+interface:
+  display_name: "Embedding FT Worker"
+  short_description: "Debug and run embedding worker jobs"
+  default_prompt: "Use $embedding-ft to validate an embedding job payload and run a remote smoke test."

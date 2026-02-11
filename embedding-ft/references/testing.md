@@ -1,19 +1,21 @@
 # Testing & debugging
 
+## Preferred smoke test
 ```bash
-curl -i --location --request POST "https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/embedding_ft" \
-  --header "Authorization: Bearer $TOKEN" \
-  --header 'Content-Type: application/json' \
-  --data @assets/example-jobs.json
+scripts/run-embedding-ft.sh --token "$TOKEN"
+```
+
+## Dry run (request preview)
+```bash
+scripts/run-embedding-ft.sh --dry-run --token "$TOKEN"
 ```
 
 ## Checklist
-- Response lists completed vs failed jobs.
-- Logs show `processing embedding job` and `embedding updated successfully` for each job.
-- Ensure AWS creds valid; failures often surface as 500 `SageMaker endpoint request failed`.
-- Verify `embedding_ft_at` updated and vector column populated.
+- Response contains `completedJobs` and `failedJobs`.
+- Logs include `processing embedding job` and successful update messages.
+- Target row updates embedding vector and `embedding_ft_at`.
 
 ## Failure triage
-- 400: body not an array / schema mismatch.
-- 500: SageMaker HTTP error or unexpected response shape; inspect decoded body.
-- Missing rows: check `id/version` or replication lag; job is acked to avoid retry loop.
+- `400`: body is not a valid job array or field type mismatch.
+- `500`: SageMaker request failure or unsupported embedding response shape.
+- Missing row/content: check `id`, `version`, and `contentFunction`; job is acked to avoid retry loops.

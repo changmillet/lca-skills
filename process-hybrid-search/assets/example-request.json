@@ -1,15 +1,15 @@
 {
   "query": "Open-loop mechanical recycling process for HDPE packaging",
   "filter": {
-  "processInformation": {
-    "geography": {
-      "locationOfOperationSupplyOrProduction": {
-        "@location": "CN"
+    "processInformation": {
+      "geography": {
+        "locationOfOperationSupplyOrProduction": {
+          "@location": "CN"
+        }
+      },
+      "time": {
+        "common:referenceYear": 2021
       }
-    },
-    "time": {
-      "common:referenceYear": 2021
     }
   }
-}
 }
