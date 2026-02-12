@@ -13,6 +13,8 @@ DEFAULT_MINERU_SECTION = "tiangong_mineru_with_image"
 @dataclass(slots=True)
 class MineruWithImagesConfig:
     url: str
+    service_name: str
+    transport: str
     api_key: str | None
     api_key_header: str
     api_key_prefix: str
@@ -49,6 +51,11 @@ class MineruWithImagesClient:
     ) -> Any:
         if not file_path.exists():
             raise FileNotFoundError(file_path)
+        if self._config.transport not in {"streamable_http", "http", "https"}:
+            raise SystemExit(
+                f"Unsupported MinerU transport '{self._config.transport}'. "
+                "Expected one of: streamable_http, http, https."
+            )
         payload = _build_payload(
             provider if provider is not None else self._config.provider,
             model if model is not None else self._config.model,
@@ -72,9 +79,31 @@ class MineruWithImagesClient:
 
 def load_mineru_with_images_config() -> MineruWithImagesConfig:
     """Load MinerU-with-images config from environment variables only."""
+    service_name = (
+        _env_first(
+            "TIANGONG_MINERU_WITH_IMAGE_SERVICE_NAME",
+            "MINERU_WITH_IMAGES_SERVICE_NAME",
+            "MINERU_SERVICE_NAME",
+        )
+        or DEFAULT_MINERU_SECTION
+    )
+    transport = (
+        _env_first(
+            "TIANGONG_MINERU_WITH_IMAGE_TRANSPORT",
+            "MINERU_WITH_IMAGES_TRANSPORT",
+            "MINERU_TRANSPORT",
+        )
+        or "streamable_http"
+    ).strip().lower()
+
     url = _env_first("TIANGONG_MINERU_WITH_IMAGE_URL", "MINERU_WITH_IMAGES_URL", "MINERU_URL")
     if not url:
         raise SystemExit("Mineru service URL missing. Set TIANGONG_MINERU_WITH_IMAGE_URL.")
+    if transport not in {"streamable_http", "http", "https"}:
+        raise SystemExit(
+            f"Unsupported MinerU transport '{transport}'. "
+            "Expected one of: streamable_http, http, https."
+        )
 
     api_key_header = _env_first("TIANGONG_MINERU_WITH_IMAGE_API_KEY_HEADER", "MINERU_WITH_IMAGES_API_KEY_HEADER") or "Authorization"
     api_key_prefix = _env_first("TIANGONG_MINERU_WITH_IMAGE_API_KEY_PREFIX", "MINERU_WITH_IMAGES_API_KEY_PREFIX")
@@ -103,6 +132,8 @@ def load_mineru_with_images_config() -> MineruWithImagesConfig:
 
     return MineruWithImagesConfig(
         url=url,
+        service_name=service_name,
+        transport=transport,
         api_key=api_key,
         api_key_header=api_key_header,
         api_key_prefix=api_key_prefix,
