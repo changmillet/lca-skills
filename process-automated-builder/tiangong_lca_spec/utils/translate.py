@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
 import re
-import tomllib
 from typing import Any, Protocol
 
 from openai import OpenAI
@@ -29,29 +29,27 @@ class Translator:
         self,
         *,
         model: str | None = None,
-        secrets_path: str = ".secrets/secrets.toml",
         llm: LanguageModelProtocol | None = None,
         max_tokens: int | None = None,
     ) -> None:
         self._model = model
         self._llm = llm
         self._max_tokens = max_tokens
-        self._client = None if llm is not None else self._make_client(secrets_path)
+        self._client = None if llm is not None else self._make_client()
         self._cache: dict[tuple[str, str], str] = {}
 
-    def _make_client(self, secrets_path: str) -> OpenAI:
+    def _make_client(self) -> OpenAI:
         client_kwargs: dict[str, Any] = {}
-        try:
-            with open(secrets_path, "rb") as fh:
-                secrets = tomllib.load(fh)
-            openai_conf = secrets.get("openai", {})
-            api_key = openai_conf.get("api_key")
-            if api_key:
-                client_kwargs["api_key"] = api_key
-            if not self._model and openai_conf.get("model"):
-                self._model = openai_conf.get("model")
-        except Exception:
-            pass
+        api_key = (os.getenv("OPENAI_API_KEY") or os.getenv("LCA_OPENAI_API_KEY") or "").strip()
+        if api_key:
+            if api_key.lower().startswith("bearer "):
+                api_key = api_key[7:].strip()
+            client_kwargs["api_key"] = api_key
+        if not self._model:
+            self._model = (os.getenv("OPENAI_MODEL") or os.getenv("LCA_OPENAI_MODEL") or "").strip() or None
+        base_url = (os.getenv("OPENAI_BASE_URL") or os.getenv("LCA_OPENAI_BASE_URL") or "").strip()
+        if base_url:
+            client_kwargs["base_url"] = base_url
         if not self._model:
             self._model = "gpt-4o-mini"
         return OpenAI(**client_kwargs)

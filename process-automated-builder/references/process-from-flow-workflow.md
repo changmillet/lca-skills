@@ -142,6 +142,7 @@ This reference is a self-contained migration of the `process_from_flow` workflow
 
 ### Run Notes
 - New runs require explicit `--flow`; no default flow file path is assumed.
+- Flow-search MCP runtime settings can be injected via env (`TIANGONG_LCA_REMOTE_TRANSPORT`, `TIANGONG_LCA_REMOTE_SERVICE_NAME`, `TIANGONG_LCA_REMOTE_URL`, `TIANGONG_LCA_REMOTE_API_KEY`).
 - `process_from_flow_workflow.py` does not expose `--no-llm` (Step 1b/1e require LLM); use `process_from_flow_langgraph.py --no-llm` for deterministic debugging.
 - `--min-si-hint` controls SI download threshold (`none|possible|likely`), with `--si-max-links/--si-timeout`.
 - Default run-id naming (when `--run-id` is omitted): `pfw_<flow_code>_<flow_uuid8>_<operation>_<UTC_TIMESTAMP>` (example: `pfw_01211_3a8d74d8_produce_20260211T105022Z`).
@@ -203,7 +204,7 @@ Actual order in `process_from_flow_langgraph.py`:
 
 ### Dependencies and Configuration
 - Entrypoints: `FlowPublisher`, `ProcessPublisher`, `DatabaseCrudClient`.
-- MCP service: configure `tiangong_lca_remote` in `.secrets/secrets.toml` (`Database_CRUD_Tool`).
+- MCP service: configure `tiangong_lca_remote` via `TIANGONG_LCA_REMOTE_*` env vars (`Database_CRUD_Tool`).
 - LLM optional: used for flow type/product category inference and bilingual field completion for new flows; failures fall back to deterministic defaults with logs.
 
 ### Step 0: Publish sources (optional but recommended)
@@ -239,15 +240,14 @@ Actual order in `process_from_flow_langgraph.py`:
 - Step 1b uses `filter: {"doi": [...]}` + `topK=1` + `extK` (default `extK=200`).
 
 ### Configuration
-Configure `tiangong_kb_remote` in `.secrets/secrets.toml`:
+Configure `tiangong_kb_remote` by environment variables:
 
-```toml
-[tiangong_kb_remote]
-transport = "streamable_http"
-service_name = "TianGong_KB_Remote"
-url = "https://mcp.tiangong.earth/mcp"
-api_key = "<YOUR_TG_KB_REMOTE_API_KEY>"
-timeout = 180
+```bash
+export TIANGONG_KB_REMOTE_TRANSPORT="streamable_http"
+export TIANGONG_KB_REMOTE_SERVICE_NAME="TianGong_KB_Remote"
+export TIANGONG_KB_REMOTE_URL="https://mcp.tiangong.earth/mcp"
+export TIANGONG_KB_REMOTE_API_KEY="<YOUR_TG_KB_REMOTE_API_KEY>"
+export TIANGONG_KB_REMOTE_TIMEOUT="180"
 ```
 
 If not configured or invalid, the workflow falls back to LLM common sense only.

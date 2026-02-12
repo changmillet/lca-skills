@@ -51,14 +51,14 @@ try:
         OpenAIResponsesLLM,
         dump_json,
         generate_run_id,
-        load_secrets,
+        load_openai_from_env,
     )
 except ModuleNotFoundError:  # pragma: no cover
     from _workflow_common import (  # type: ignore
         OpenAIResponsesLLM,
         dump_json,
         generate_run_id,
-        load_secrets,
+        load_openai_from_env,
     )
 
 PROCESS_FROM_FLOW_ARTIFACTS_ROOT = Path("artifacts/process_from_flow")
@@ -108,7 +108,6 @@ def parse_args() -> argparse.Namespace:
         choices=("references", "tech", "processes", "exchanges", "matches", "sources", "datasets"),
         help="Stop after a stage, writing state to cache for manual editing.",
     )
-    parser.add_argument("--secrets", type=Path, default=Path(".secrets/secrets.toml"), help="Secrets file containing OpenAI credentials.")
     parser.add_argument("--no-llm", action="store_true", help="Run without an LLM (uses minimal deterministic fallbacks).")
     parser.add_argument("--no-translate-zh", action="store_true", help="Skip adding Chinese translations to multi-language fields.")
     parser.add_argument(
@@ -918,8 +917,8 @@ def main() -> None:
         if not args.skip_balance_check:
             _enforce_balance_quality_gate(run_id, strict=args.strict_balance_check)
         llm = None
-        if args.publish_flows and not args.no_llm and args.secrets.exists():
-            api_key, model, base_url = load_secrets(args.secrets)
+        if args.publish_flows and not args.no_llm:
+            api_key, model, base_url = load_openai_from_env()
             llm = OpenAIResponsesLLM(api_key=api_key, model=model, base_url=base_url)
         source_datasets = _load_source_datasets(run_id)
         datasets = _load_process_datasets(run_id)
@@ -990,9 +989,7 @@ def main() -> None:
 
     llm = None
     if not args.no_llm:
-        if not args.secrets.exists():
-            raise SystemExit(f"Secrets file not found: {args.secrets} (or pass --no-llm)")
-        api_key, model, base_url = load_secrets(args.secrets)
+        api_key, model, base_url = load_openai_from_env()
         llm = OpenAIResponsesLLM(api_key=api_key, model=model, base_url=base_url)
 
     from tiangong_lca_spec.process_from_flow import ProcessFromFlowService

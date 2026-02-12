@@ -15,7 +15,6 @@ from typing import Any
 import httpx
 
 from tiangong_lca_spec.utils.mineru_with_images import (
-    DEFAULT_MINERU_SECTION,
     MineruWithImagesClient,
     load_mineru_with_images_config,
 )
@@ -38,17 +37,6 @@ def parse_args() -> argparse.Namespace:
         "--output-dir",
         type=Path,
         help="Override output directory when --output is not set (default: run_id/input/si_mineru).",
-    )
-    parser.add_argument(
-        "--secrets-path",
-        type=Path,
-        default=Path(".secrets/secrets.toml"),
-        help="Secrets TOML path.",
-    )
-    parser.add_argument(
-        "--section",
-        default=DEFAULT_MINERU_SECTION,
-        help="Secrets section name for the mineru_with_images config.",
     )
     parser.add_argument("--url", help="Override the service URL.")
     parser.add_argument("--api-key", help="Override the service API key.")
@@ -77,7 +65,7 @@ def main() -> None:
     if args.output is None and args.output_dir is None and run_id is None:
         raise SystemExit("Provide --run-id/--output/--output-dir, or place input under artifacts/process_from_flow/<run_id>/input/si.")
 
-    config = load_mineru_with_images_config(args.secrets_path, section_name=args.section)
+    config = load_mineru_with_images_config()
     overrides = {}
     if args.url:
         overrides["url"] = args.url

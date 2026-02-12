@@ -19,9 +19,9 @@ for path in (SCRIPTS_DIR, REPO_ROOT):
         sys.path.append(str(path))
 
 try:
-    from scripts.md._workflow_common import OpenAIResponsesLLM, dump_json, load_secrets  # type: ignore
+    from scripts.md._workflow_common import OpenAIResponsesLLM, dump_json, load_openai_from_env  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover
-    from _workflow_common import OpenAIResponsesLLM, dump_json, load_secrets  # type: ignore
+    from _workflow_common import OpenAIResponsesLLM, dump_json, load_openai_from_env  # type: ignore
 
 from tiangong_lca_spec.core.json_utils import parse_json_response
 from tiangong_lca_spec.process_from_flow.prompts import REFERENCE_USAGE_TAGGING_PROMPT
@@ -46,7 +46,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-id", required=True, help="Run ID under artifacts/process_from_flow.")
     parser.add_argument("--state-path", type=Path, help="Explicit state JSON path to load.")
-    parser.add_argument("--secrets", type=Path, default=Path(".secrets/secrets.toml"), help="Secrets file with OpenAI credentials.")
     parser.add_argument("--max-chars", type=int, default=DEFAULT_MAX_CHARS, help="Max fulltext chars per DOI.")
     parser.add_argument("--max-records", type=int, default=DEFAULT_MAX_RECORDS, help="Max fulltext records per DOI.")
     parser.add_argument("--max-si-snippets", type=int, default=DEFAULT_MAX_SI_SNIPPETS, help="Max SI snippets per DOI.")
@@ -135,9 +134,7 @@ def main() -> None:
     if not isinstance(scientific_references, dict):
         raise SystemExit("Missing scientific_references in state.")
 
-    if not args.secrets.exists():
-        raise SystemExit(f"Secrets file not found: {args.secrets}")
-    api_key, model, base_url = load_secrets(args.secrets)
+    api_key, model, base_url = load_openai_from_env()
     llm = OpenAIResponsesLLM(api_key=api_key, model=model, base_url=base_url)
 
     fulltext_map = _build_fulltext_map(scientific_references)

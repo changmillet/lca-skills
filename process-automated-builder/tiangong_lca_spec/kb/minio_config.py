@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import tomllib
+import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -34,33 +33,26 @@ class MinioConfig:
         return join_remote_path(*components)
 
 
-def load_minio_config(path: Path) -> MinioConfig:
-    """Load the [minio] block from the provided secrets TOML file."""
-    if not path.exists():
-        raise SystemExit(f"Secrets file not found: {path}")
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    section = data.get("minio")
-    if not isinstance(section, dict):
-        raise SystemExit(f"[minio] section missing in secrets file: {path}")
-
-    endpoint_raw = str(section.get("endpoint") or "").strip()
-    access_key = str(section.get("access_key") or "").strip()
-    secret_key = str(section.get("secret_key") or "").strip()
-    bucket_name = str(section.get("bucket_name") or "").strip()
-    prefix = str(section.get("prefix") or "").strip()
+def load_minio_config() -> MinioConfig:
+    """Load MinIO config from environment variables."""
+    endpoint_raw = _env_first("TIANGONG_MINIO_ENDPOINT", "MINIO_ENDPOINT") or ""
+    access_key = _env_first("TIANGONG_MINIO_ACCESS_KEY", "MINIO_ACCESS_KEY") or ""
+    secret_key = _env_first("TIANGONG_MINIO_SECRET_KEY", "MINIO_SECRET_KEY") or ""
+    bucket_name = _env_first("TIANGONG_MINIO_BUCKET_NAME", "MINIO_BUCKET_NAME") or ""
+    prefix = _env_first("TIANGONG_MINIO_PREFIX", "MINIO_PREFIX") or ""
     if not endpoint_raw:
-        raise SystemExit("MinIO endpoint missing in secrets configuration.")
+        raise SystemExit("MinIO endpoint missing. Set TIANGONG_MINIO_ENDPOINT.")
     if not access_key:
-        raise SystemExit("MinIO access_key missing in secrets configuration.")
+        raise SystemExit("MinIO access_key missing. Set TIANGONG_MINIO_ACCESS_KEY.")
     if not secret_key:
-        raise SystemExit("MinIO secret_key missing in secrets configuration.")
+        raise SystemExit("MinIO secret_key missing. Set TIANGONG_MINIO_SECRET_KEY.")
     if not bucket_name:
-        raise SystemExit("MinIO bucket_name missing in secrets configuration.")
+        raise SystemExit("MinIO bucket_name missing. Set TIANGONG_MINIO_BUCKET_NAME.")
 
     endpoint, secure_from_endpoint = _normalize_endpoint(endpoint_raw)
-    secure_override = _optional_bool(section.get("secure"))
+    secure_override = _optional_bool(_env_first("TIANGONG_MINIO_SECURE", "MINIO_SECURE"))
     secure = secure_override if secure_override is not None else secure_from_endpoint
-    session_token = _optional_str(section.get("session_token"))
+    session_token = _optional_str(_env_first("TIANGONG_MINIO_SESSION_TOKEN", "MINIO_SESSION_TOKEN"))
 
     return MinioConfig(
         endpoint=endpoint,
@@ -128,3 +120,14 @@ def _optional_str(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _env_first(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None

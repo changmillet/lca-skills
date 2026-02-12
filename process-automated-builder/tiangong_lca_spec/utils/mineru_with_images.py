@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import mimetypes
-import tomllib
+import os
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import httpx
@@ -71,38 +70,36 @@ class MineruWithImagesClient:
         return _parse_response(response)
 
 
-def load_mineru_with_images_config(
-    path: Path,
-    *,
-    section_name: str = DEFAULT_MINERU_SECTION,
-) -> MineruWithImagesConfig:
-    if not path.exists():
-        raise SystemExit(f"Secrets file not found: {path}")
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    section = _resolve_section(data, section_name)
-    if section is None:
-        raise SystemExit(f"[{section_name}] section missing in secrets file: {path}")
-
-    url = _optional_str(section.get("url"))
+def load_mineru_with_images_config() -> MineruWithImagesConfig:
+    """Load MinerU-with-images config from environment variables only."""
+    url = _env_first("TIANGONG_MINERU_WITH_IMAGE_URL", "MINERU_WITH_IMAGES_URL", "MINERU_URL")
     if not url:
-        raise SystemExit("Mineru service url missing in secrets configuration.")
+        raise SystemExit("Mineru service URL missing. Set TIANGONG_MINERU_WITH_IMAGE_URL.")
 
-    api_key_header = _optional_str(section.get("api_key_header"))
-    if not api_key_header:
-        raise SystemExit("Mineru api_key_header missing in secrets configuration.")
-    api_key_prefix = _optional_str(section.get("api_key_prefix"), allow_blank=True)
+    api_key_header = _env_first("TIANGONG_MINERU_WITH_IMAGE_API_KEY_HEADER", "MINERU_WITH_IMAGES_API_KEY_HEADER") or "Authorization"
+    api_key_prefix = _env_first("TIANGONG_MINERU_WITH_IMAGE_API_KEY_PREFIX", "MINERU_WITH_IMAGES_API_KEY_PREFIX")
     if api_key_prefix is None:
-        raise SystemExit("Mineru api_key_prefix missing in secrets configuration.")
-    api_key = _sanitize_api_key(section.get("api_key") or section.get("authorization"), api_key_prefix)
-    timeout = _coerce_float(section.get("timeout"))
+        api_key_prefix = "Bearer"
+
+    api_key = _sanitize_api_key(
+        _env_first(
+            "TIANGONG_MINERU_WITH_IMAGE_API_KEY",
+            "MINERU_WITH_IMAGES_API_KEY",
+            "MINERU_API_KEY",
+            "TIANGONG_MINERU_WITH_IMAGE_AUTHORIZATION",
+        ),
+        api_key_prefix,
+    )
+    timeout = _coerce_float(_env_first("TIANGONG_MINERU_WITH_IMAGE_TIMEOUT", "MINERU_WITH_IMAGES_TIMEOUT"))
     if timeout is None:
-        raise SystemExit("Mineru timeout missing in secrets configuration.")
-    provider = _optional_str(section.get("provider"))
-    model = _optional_str(section.get("model"))
-    chunk_type = _coerce_bool(section.get("chunk_type"), default=None)
-    verify_ssl = _coerce_bool(section.get("verify_ssl"), default=None)
+        timeout = 180.0
+
+    provider = _optional_str(_env_first("TIANGONG_MINERU_WITH_IMAGE_PROVIDER", "MINERU_WITH_IMAGES_PROVIDER"))
+    model = _optional_str(_env_first("TIANGONG_MINERU_WITH_IMAGE_MODEL", "MINERU_WITH_IMAGES_MODEL"))
+    chunk_type = _coerce_bool(_env_first("TIANGONG_MINERU_WITH_IMAGE_CHUNK_TYPE", "MINERU_WITH_IMAGES_CHUNK_TYPE"), default=None)
+    verify_ssl = _coerce_bool(_env_first("TIANGONG_MINERU_WITH_IMAGE_VERIFY_SSL", "MINERU_WITH_IMAGES_VERIFY_SSL"), default=True)
     if verify_ssl is None:
-        raise SystemExit("Mineru verify_ssl missing in secrets configuration.")
+        verify_ssl = True
 
     return MineruWithImagesConfig(
         url=url,
@@ -117,22 +114,14 @@ def load_mineru_with_images_config(
     )
 
 
-def _resolve_section(data: dict[str, Any], section_name: str) -> dict[str, Any] | None:
-    candidates = [
-        section_name,
-        "mineru_with_images",
-        "tiangong_mineru_with_images",
-        "mineru_with_image",
-        "tiangong_mineru_with_image",
-    ]
-    seen: set[str] = set()
-    for key in candidates:
-        if key in seen:
+def _env_first(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
             continue
-        seen.add(key)
-        section = data.get(key)
-        if isinstance(section, dict):
-            return section
+        text = str(value).strip()
+        if text:
+            return text
     return None
 
 

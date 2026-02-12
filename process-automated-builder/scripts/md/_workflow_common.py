@@ -8,7 +8,6 @@ import os
 import shutil
 import tempfile
 import time
-import tomllib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -120,15 +119,16 @@ class OpenAIResponsesLLM:
         return "\n".join(parts)
 
 
-def load_secrets(path: Path) -> tuple[str, str, str | None]:
-    """Load OpenAI API credentials (and optional base URL) from the secrets file."""
-    secrets = tomllib.loads(path.read_text(encoding="utf-8"))
-    openai_cfg = secrets.get("openai", {})
-    api_key = openai_cfg.get("api_key")
-    model = openai_cfg.get("model") or "gpt-5"
-    base_url = openai_cfg.get("base_url") or None
+def load_openai_from_env() -> tuple[str, str, str | None]:
+    """Load OpenAI API credentials from environment variables only."""
+    api_key = (os.getenv("OPENAI_API_KEY") or os.getenv("LCA_OPENAI_API_KEY") or "").strip()
+    if api_key.lower().startswith("bearer "):
+        api_key = api_key[7:].strip()
     if not api_key:
-        raise SystemExit(f"OpenAI API key missing in {path}")
+        raise SystemExit("OpenAI API key missing. Set OPENAI_API_KEY (or LCA_OPENAI_API_KEY).")
+
+    model = (os.getenv("OPENAI_MODEL") or os.getenv("LCA_OPENAI_MODEL") or "gpt-5").strip() or "gpt-5"
+    base_url = (os.getenv("OPENAI_BASE_URL") or os.getenv("LCA_OPENAI_BASE_URL") or "").strip() or None
     return api_key, model, base_url
 
 

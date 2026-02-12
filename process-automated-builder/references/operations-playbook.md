@@ -8,6 +8,13 @@ source process-automated-builder/.venv/bin/activate
 
 ## 2) Run End-to-End (Recommended)
 ```bash
+export TIANGONG_LCA_REMOTE_TRANSPORT="streamable_http"
+export TIANGONG_LCA_REMOTE_SERVICE_NAME="TianGong_LCA_Remote"
+export TIANGONG_LCA_REMOTE_URL="https://lcamcp.tiangong.earth/mcp"
+export TIANGONG_LCA_REMOTE_API_KEY="<your-api-key>"
+export OPENAI_API_KEY="<your-openai-api-key>"
+export OPENAI_MODEL="gpt-5"
+
 process-automated-builder/scripts/run-process-automated-builder.sh \
   --mode workflow \
   --flow-file /abs/path/to/reference-flow.json \
@@ -47,7 +54,10 @@ process-automated-builder/scripts/run-process-automated-builder.sh \
 ## Runtime Notes
 - New runs require flow input; no default flow file is used.
 - Resume mode can omit `--flow` and read it from cached state.
-- Keep `.secrets/secrets.toml` available for LLM and MCP calls unless running with `--no-llm`.
+- Flow-search MCP configuration is read from `TIANGONG_LCA_REMOTE_*` env vars.
+- OpenAI configuration is read from `OPENAI_*` (or `LCA_OPENAI_*`) env vars.
+- Literature MCP (`TianGong_KB_Remote`) can be configured by `TIANGONG_KB_REMOTE_*` env vars.
+- MinerU OCR client can be configured by `TIANGONG_MINERU_WITH_IMAGE_*` env vars.
 - `--publish` and `--commit` may invoke remote CRUD services; use dry-run first.
 
 ## Failure Triage

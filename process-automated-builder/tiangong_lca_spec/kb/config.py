@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import tomllib
+import json
+import os
 from dataclasses import dataclass, field, replace
-from pathlib import Path
 from typing import Any, Mapping
 
 DEFAULT_TIMEOUT_SECONDS = 60.0
@@ -80,39 +80,32 @@ class KnowledgeBaseConfig:
         return {"Authorization": f"Bearer {self.api_key}"}
 
 
-def load_kb_config(path: Path) -> KnowledgeBaseConfig:
-    """Load the knowledge base configuration from the secrets TOML file."""
-    if not path.exists():
-        raise SystemExit(f"Secrets file not found: {path}")
-    data = tomllib.loads(path.read_text(encoding="utf-8"))
-    section = data.get("kb") or data.get("knowledge_base")
-    if not isinstance(section, dict):
-        raise SystemExit(f"[kb] section missing in secrets file: {path}")
-
-    base_url = section.get("base_url", "").strip()
-    dataset_id = section.get("dataset_id", "").strip()
-    api_key = _sanitize_api_key(section.get("api_key"))
-    timeout = _coerce_float(section.get("timeout")) or DEFAULT_TIMEOUT_SECONDS
+def load_kb_config() -> KnowledgeBaseConfig:
+    """Load the knowledge base configuration from environment variables."""
+    base_url = _env_first("TIANGONG_KB_BASE_URL", "KB_BASE_URL")
+    dataset_id = _env_first("TIANGONG_KB_DATASET_ID", "KB_DATASET_ID")
+    api_key = _sanitize_api_key(_env_first("TIANGONG_KB_API_KEY", "KB_API_KEY"))
+    timeout = _coerce_float(_env_first("TIANGONG_KB_TIMEOUT", "KB_TIMEOUT")) or DEFAULT_TIMEOUT_SECONDS
 
     if not base_url:
-        raise SystemExit("Knowledge base base_url missing in secrets configuration.")
+        raise SystemExit("Knowledge base base_url missing. Set TIANGONG_KB_BASE_URL.")
     if not dataset_id:
-        raise SystemExit("Knowledge base dataset_id missing in secrets configuration.")
+        raise SystemExit("Knowledge base dataset_id missing. Set TIANGONG_KB_DATASET_ID.")
     if not api_key:
-        raise SystemExit("Knowledge base api_key missing in secrets configuration.")
+        raise SystemExit("Knowledge base api_key missing. Set TIANGONG_KB_API_KEY.")
 
-    metadata_definitions = _load_metadata_definitions(section.get("metadata_fields"))
-
-    pipeline_cfg = section.get("pipeline") or {}
-    if pipeline_cfg and not isinstance(pipeline_cfg, dict):
-        raise SystemExit("[kb.pipeline] must be a table containing datasource configuration.")
-
-    pipeline_inputs = pipeline_cfg.get("inputs") or {}
+    metadata_definitions = _load_metadata_definitions(_env_json("TIANGONG_KB_METADATA_FIELDS", "KB_METADATA_FIELDS"))
+    pipeline_inputs = _env_json("TIANGONG_KB_PIPELINE_INPUTS", "KB_PIPELINE_INPUTS")
+    if pipeline_inputs is None:
+        pipeline_inputs = {}
     if not isinstance(pipeline_inputs, dict):
-        raise SystemExit("[kb.pipeline.inputs] must be a JSON object.")
-    pipeline_inputs = dict(pipeline_inputs)
+        raise SystemExit("KB pipeline inputs must be a JSON object.")
 
     normalized_base_url = f"{base_url.rstrip('/')}/"
+    datasource_type = _env_first("TIANGONG_KB_PIPELINE_DATASOURCE_TYPE", "KB_PIPELINE_DATASOURCE_TYPE") or "local_file"
+    start_node_id = _optional_str(_env_first("TIANGONG_KB_PIPELINE_START_NODE_ID", "KB_PIPELINE_START_NODE_ID"))
+    response_mode = _env_first("TIANGONG_KB_PIPELINE_RESPONSE_MODE", "KB_PIPELINE_RESPONSE_MODE") or "blocking"
+    is_published = _coerce_bool(_env_first("TIANGONG_KB_PIPELINE_IS_PUBLISHED", "KB_PIPELINE_IS_PUBLISHED"), default=True)
 
     return KnowledgeBaseConfig(
         base_url=normalized_base_url,
@@ -120,12 +113,33 @@ def load_kb_config(path: Path) -> KnowledgeBaseConfig:
         dataset_id=dataset_id,
         request_timeout=timeout,
         metadata_fields=metadata_definitions,
-        pipeline_datasource_type=pipeline_cfg.get("datasource_type") or "local_file",
-        pipeline_start_node_id=_optional_str(pipeline_cfg.get("start_node_id")),
+        pipeline_datasource_type=datasource_type,
+        pipeline_start_node_id=start_node_id,
         pipeline_inputs=pipeline_inputs,
-        pipeline_response_mode=pipeline_cfg.get("response_mode") or "blocking",
-        pipeline_is_published=_coerce_bool(pipeline_cfg.get("is_published"), default=True),
+        pipeline_response_mode=response_mode,
+        pipeline_is_published=is_published,
     )
+
+
+def _env_first(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
+def _env_json(*names: str) -> Any:
+    text = _env_first(*names)
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in env {names[0]}: {exc}") from exc
 
 
 def _load_metadata_definitions(raw: Any) -> list[MetadataFieldDefinition]:

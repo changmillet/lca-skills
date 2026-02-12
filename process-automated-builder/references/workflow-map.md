@@ -11,6 +11,24 @@
 - Optional controls:
   - `operation`: `produce` or `treat`.
   - `run_id`, `stop_after`, publish flags, density conversion flags.
+- Runtime env for flow-search MCP:
+  - `TIANGONG_LCA_REMOTE_TRANSPORT`
+  - `TIANGONG_LCA_REMOTE_SERVICE_NAME`
+  - `TIANGONG_LCA_REMOTE_URL`
+  - `TIANGONG_LCA_REMOTE_API_KEY`
+- Runtime env for LLM:
+  - `OPENAI_API_KEY`
+  - `OPENAI_MODEL` (optional)
+  - `OPENAI_BASE_URL` (optional)
+- Runtime env for KB MCP (literature retrieval path):
+  - `TIANGONG_KB_REMOTE_TRANSPORT`
+  - `TIANGONG_KB_REMOTE_SERVICE_NAME`
+  - `TIANGONG_KB_REMOTE_URL`
+  - `TIANGONG_KB_REMOTE_API_KEY`
+- Runtime env for MinerU OCR (SI parsing path):
+  - `TIANGONG_MINERU_WITH_IMAGE_URL`
+  - `TIANGONG_MINERU_WITH_IMAGE_API_KEY` (optional)
+  - `TIANGONG_MINERU_WITH_IMAGE_TIMEOUT` (optional)
 
 ## Execution Layers
 1. Wrapper layer

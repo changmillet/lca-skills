@@ -52,7 +52,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--flow", type=Path, required=True, help="Path to the agent-provided reference flow JSON.")
     parser.add_argument("--operation", choices=("produce", "treat"), default="produce", help="Whether the process produces or treats the reference flow.")
     parser.add_argument("--run-id", help="Run identifier under artifacts/process_from_flow/<run_id>.")
-    parser.add_argument("--secrets", type=Path, default=Path(".secrets/secrets.toml"), help="Secrets file for LLM/SI tools.")
     parser.add_argument("--no-translate-zh", action="store_true", help="Skip adding Chinese translations.")
     parser.add_argument(
         "--allow-density-conversion",
@@ -124,8 +123,6 @@ def _run_reference_stage(args: argparse.Namespace, run_id: str, *, log_path: Pat
         run_id,
         "--stop-after",
         "references",
-        "--secrets",
-        str(args.secrets),
     ]
     if args.no_translate_zh:
         cmd.append("--no-translate-zh")
@@ -141,8 +138,6 @@ def _run_usability(args: argparse.Namespace, run_id: str, *, log_path: Path | No
     cmd = [
         "--run-id",
         run_id,
-        "--secrets",
-        str(args.secrets),
     ]
     _run_python(script, cmd, log_path=log_path)
 
@@ -167,8 +162,6 @@ def _run_usage_tagging(args: argparse.Namespace, run_id: str, *, log_path: Path 
     cmd = [
         "--run-id",
         run_id,
-        "--secrets",
-        str(args.secrets),
     ]
     _run_python(script, cmd, log_path=log_path)
 
@@ -199,8 +192,6 @@ def _run_mineru_for_si(args: argparse.Namespace, run_id: str, *, log_path: Path 
             str(path),
             "--run-id",
             run_id,
-            "--secrets-path",
-            str(args.secrets),
         ]
         try:
             _run_python(script, cmd, log_path=log_path)
@@ -220,8 +211,6 @@ def _run_main_pipeline(args: argparse.Namespace, run_id: str, *, log_path: Path 
         "--run-id",
         run_id,
         "--resume",
-        "--secrets",
-        str(args.secrets),
     ]
     if args.no_translate_zh:
         cmd.append("--no-translate-zh")
