@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Unified LCI review entrypoint")
+    parser.add_argument("--profile", choices=["process", "flow", "model"], default="process")
+    parser.add_argument("--run-root")
+    parser.add_argument("--run-id")
+    parser.add_argument("--out-dir")
+    parser.add_argument("--start-ts")
+    parser.add_argument("--end-ts")
+    args = parser.parse_args()
+
+    if args.profile == "process":
+        required = ["run_root", "run_id", "out_dir"]
+        missing = [name for name in required if not getattr(args, name)]
+        if missing:
+            parser.error("process profile requires: --run-root --run-id --out-dir")
+
+        target = Path(__file__).resolve().parents[1] / "profiles" / "process" / "scripts" / "run_lci_review.py"
+        cmd = [
+            sys.executable,
+            str(target),
+            "--run-root", args.run_root,
+            "--run-id", args.run_id,
+            "--out-dir", args.out_dir,
+        ]
+        if args.start_ts:
+            cmd += ["--start-ts", args.start_ts]
+        if args.end_ts:
+            cmd += ["--end-ts", args.end_ts]
+        raise SystemExit(subprocess.call(cmd))
+
+    print(
+        f"Profile '{args.profile}' not implemented yet. "
+        "Next step: add reviewer logic under profiles/"
+        f"{args.profile}/ and wire it in scripts/run_review.py."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    main()
