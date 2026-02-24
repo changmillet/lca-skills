@@ -90,25 +90,28 @@ def classify_exchange(e):
     flow_desc = _txt((e.get("referenceToFlowDataSet") or {}).get("common:shortDescription")).lower()
     blob = c + " " + flow_desc
     kinds = [k.lower() for k in KIND_RE.findall(c)]
+    kind_set = set(kinds)
     uoms = [u.lower() for u in UOM_RE.findall(c)]
     direction = (e.get("exchangeDirection") or "").lower()
     is_energy = any(w in blob for w in ENERGY_WORDS) or any(u in ("kwh", "mj", "gj") for u in uoms)
 
     if direction == "input":
-        if is_energy:
+        if "energy" in kind_set or is_energy:
             return "energy_input", kinds, uoms, blob
-        if "waste" in kinds:
+        if "waste" in kind_set:
             return "other_input", kinds, uoms, blob
-        if "product" in kinds or any(w in blob for w in RAW_WORDS):
+        if "raw_material" in kind_set or "resource" in kind_set:
+            return "raw_material_input", kinds, uoms, blob
+        if "product" in kind_set or any(w in blob for w in RAW_WORDS):
             return "raw_material_input", kinds, uoms, blob
         return "other_input", kinds, uoms, blob
 
     if direction == "output":
-        if "waste" in kinds or any(w in blob for w in WASTE_WORDS):
+        if "waste" in kind_set or any(w in blob for w in WASTE_WORDS):
             return "waste_output", kinds, uoms, blob
         if any(w in blob for w in BYP_WORDS):
             return "byproduct_output", kinds, uoms, blob
-        if "product" in kinds:
+        if "product" in kind_set:
             return "product_output", kinds, uoms, blob
         return "other_output", kinds, uoms, blob
 

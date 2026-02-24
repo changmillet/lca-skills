@@ -13,6 +13,10 @@ def main():
     parser.add_argument("--out-dir")
     parser.add_argument("--start-ts")
     parser.add_argument("--end-ts")
+    parser.add_argument("--logic-version")
+    parser.add_argument("--enable-llm", action="store_true")
+    parser.add_argument("--llm-model")
+    parser.add_argument("--llm-max-processes", type=int)
     args = parser.parse_args()
 
     if args.profile == "process":
@@ -33,6 +37,14 @@ def main():
             cmd += ["--start-ts", args.start_ts]
         if args.end_ts:
             cmd += ["--end-ts", args.end_ts]
+        if args.logic_version:
+            cmd += ["--logic-version", args.logic_version]
+        if args.enable_llm:
+            cmd += ["--enable-llm"]
+        if args.llm_model:
+            cmd += ["--llm-model", args.llm_model]
+        if args.llm_max_processes is not None:
+            cmd += ["--llm-max-processes", str(args.llm_max_processes)]
         raise SystemExit(subprocess.call(cmd))
 
     print(
