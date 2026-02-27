@@ -1,6 +1,6 @@
 ---
 name: lci-review
-description: Unified LCI review skill with profile routing. Default profile is process; flow/model are reserved for future expansion.
+description: Unified LCI review skill with profile routing. Use `process` for process_from_flow outputs and `flow` for batch flow JSON review (LLM-driven semantic review with structured findings for remediation workflows); `model` remains reserved.
 ---
 
 # lci-review
@@ -9,7 +9,7 @@ description: Unified LCI review skill with profile routing. Default profile is p
 
 ## Profiles
 - `process`（默认）：当前可用，执行 process_from_flow 产物复审。
-- `flow`：预留（not implemented yet）。
+- `flow`：当前可用（初版，LLM 驱动），执行 batch flow JSON 复审并输出结构化 findings。
 - `model`：预留（not implemented yet）。
 
 ## 统一入口
@@ -27,6 +27,39 @@ description: Unified LCI review skill with profile routing. Default profile is p
   - `one_flow_rerun_review_v2_en.md`
   - `flow_unit_issue_log.md`
 
+## flow profile
+适用于已有 flow JSON 批次（例如 remediation 工作流的 `cache/flows`）的复审，采用：
+- 本地结构化证据抽取（name/classification/flow property/quantitative reference）
+- 可选本地 reference-context 增强（通过 `process-automated-builder` 的 flow property registry 提供 flowproperty + unitgroup 证据；兼容参数名仍为 `--with-mcp-context`）
+- LLM 语义复审（输出结构化 `findings.jsonl`）
+
+输入（至少满足一种）：
+- `--flows-dir --out-dir`
+- `--run-root --out-dir`（默认尝试 `<run-root>/cache/flows`）
+
+常用可选参数：
+- `--enable-llm`
+- `--disable-llm`
+- `--llm-model`
+- `--llm-max-flows`
+- `--llm-batch-size`
+- `--with-mcp-context`（兼容参数名；内部使用本地 registry）
+- `--similarity-threshold`
+
+默认行为（flow profile）：
+- 若环境中存在 `OPENAI_API_KEY`，默认启用 LLM 语义复审。
+- 使用 `--disable-llm` 可强制关闭，退回 rule-based findings only。
+
+输出（flow profile）：
+- `findings.jsonl`
+- `rule_findings.jsonl`
+- `llm_findings.jsonl`
+- `flow_summaries.jsonl`
+- `similarity_pairs.jsonl`
+- `flow_review_summary.json`
+- `flow_review_zh.md`
+- `flow_review_en.md`
+
 ## 运行示例
 ```bash
 python scripts/run_review.py \
@@ -38,11 +71,21 @@ python scripts/run_review.py \
   --end-ts 2026-02-22T16:21:40+00:00
 ```
 
+```bash
+python scripts/run_review.py \
+  --profile flow \
+  --run-root /path/to/artifacts/flow-remediator/run-001 \
+  --out-dir /home/huimin/.openclaw/workspace/flow-review \
+  --with-mcp-context \
+  --enable-llm \
+  --llm-model gpt-5
+```
+
 ## 兼容入口（旧路径）
 为兼容现有调用，保留：
 - `scripts/run_lci_review.py`（转发到 process profile 实现）
 
 ## 后续扩展
-- `profiles/flow`：沉淀 flow 维度复审规则与脚本。
+- `profiles/flow`：继续沉淀 flow 维度复审规则，与 remediation skill 的 findings schema 对齐。
 - `profiles/model`：沉淀 model 维度复审规则与脚本。
-当前调用这两个 profile 会返回 “not implemented yet” 并提示下一步。
+当前 `model` profile 调用会返回 “not implemented yet” 并提示下一步。

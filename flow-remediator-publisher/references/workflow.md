@@ -3,7 +3,7 @@
 ## Inputs
 
 - Curated UUID list file (JSON/JSONL/TXT), typically manually exported via SQL by an operator.
-- MCP CRUD access (read-only for `fetch`/review context, append-only `insert` for publish).
+- MCP CRUD access (read-only for `fetch`, append-only `insert` for publish). Review context enrichment is delegated to `lci-review` and uses local `process-automated-builder` registry when enabled.
 - Optional local overrides JSON for product flow regeneration.
 
 ## Run Directory Layout
@@ -16,7 +16,7 @@ Example: `artifacts/flow-remediator/run-001`
 - `review/findings.jsonl`
 - `review/flow_summaries.jsonl`
 - `review/similarity_pairs.jsonl`
-- `review/review_summary.json`
+- `review/flow_review_summary.json`
 - `fix/fix_proposals.jsonl`
 - `fix/patch_manifest.jsonl`
 - `fix/patched_flows/`
@@ -35,15 +35,11 @@ Example: `artifacts/flow-remediator/run-001`
 
 ## `review`
 
-Bootstrap checks in initial version:
-
-- `typeOfDataSet` presence and non-elementary gating
-- `name` subtree recursive scan (including `Emergy`)
-- quantitative reference vs selected flow property internal ID consistency
-- optional flowproperty/unitgroup lookup via MCP CRUD for context
-- same-category high-similarity hints (near-duplicate risk)
-
-This is intentionally a bootstrap reviewer until `lci-review --profile flow` exists.
+- Delegates to `lci-review --profile flow`.
+- Produces `review/findings.jsonl` consumed by `propose-fix`.
+- `lci-review` internally combines structured evidence extraction + optional LLM semantic review.
+- If `OPENAI_API_KEY` is present, `lci-review flow` defaults to LLM-enabled review unless explicitly disabled.
+- Use `--with-mcp-context` to improve flow property / unitgroup evidence (compat flag name; delegated `lci-review` uses local `process-automated-builder` registry, not CRUD, for this context).
 
 ## `propose-fix`
 
@@ -56,7 +52,7 @@ High-risk or heuristic issues stay as candidate proposals and must be reviewed o
 
 ## `validate`
 
-- Re-runs bootstrap review on `fix/patched_flows`.
+- Re-runs `lci-review --profile flow` on `fix/patched_flows`.
 - Used as a regression gate before publish.
 
 ## `publish`
@@ -86,4 +82,3 @@ This subcommand rebuilds payloads by reusing:
 - Review and fix outputs are persisted before publish.
 - Publish is append-only (`insert`) with version bump.
 - Base version drift check is enabled by default.
-

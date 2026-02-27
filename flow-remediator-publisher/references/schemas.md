@@ -4,6 +4,8 @@ These schemas are intentionally lightweight so they can evolve while the workflo
 
 ## `review/findings.jsonl`
 
+Produced by `lci-review --profile flow` and consumed by `flow-remediator-publisher propose-fix`.
+
 One JSON object per finding.
 
 Common fields:
@@ -16,6 +18,8 @@ Common fields:
 - `fixability`: `auto|manual|review-needed`
 - `evidence` (optional object)
 - `suggested_action` (optional)
+- `source` (optional, e.g. `rule` or `llm`)
+- `confidence` (optional, mainly for LLM findings)
 
 Example:
 
@@ -112,11 +116,10 @@ Important fields:
 - `reason` (when conflict/error)
 - `insert_result` (when `insert`)
 
-## Future Alignment Target
+## Alignment Target
 
-When `lci-review --profile flow` is implemented, keep this skill compatible by:
+Keep this skill compatible with evolving `lci-review --profile flow` outputs by:
 
 - mapping external review findings into the same `findings.jsonl` shape
 - preserving `fix_proposals.jsonl` and `patch_manifest.jsonl` contracts
 - keeping publish append-only and versioned
-
