@@ -422,7 +422,7 @@ def _rule_finding(
     *,
     fixability: str = "manual",
     evidence: Optional[Dict[str, Any]] = None,
-    suggested_action: Optional[str] = None,
+    action: Optional[str] = None,
     rule_source: str = "built_in",
 ) -> Dict[str, Any]:
     row: Dict[str, Any] = {
@@ -437,8 +437,8 @@ def _rule_finding(
     }
     if evidence:
         row["evidence"] = evidence
-    if suggested_action:
-        row["suggested_action"] = suggested_action
+    if action:
+        row["action"] = action
     return row
 
 
@@ -572,7 +572,7 @@ def _flow_summary_and_rule_findings(
                     "Quantitative reference internal ID differs from selected reference flowProperty internal ID.",
                     fixability="auto",
                     evidence={"quant_ref_internal_id": quant_id, "expected_internal_id": chosen_internal_id},
-                    suggested_action="Align quantitative reference internal ID to the selected flowProperty.",
+                    action="Align quantitative reference internal ID to the selected flowProperty.",
                 )
             )
 
@@ -759,7 +759,7 @@ def _llm_flow_batch_review(batch_summaries: List[Dict[str, Any]], model: str) ->
         "- 对每条问题给出 flow_uuid；\n"
         "- 输出必须是 JSON 对象。\n\n"
         "输出格式："
-        "{overall_risk:'low|medium|high', flow_findings:[{flow_uuid, severity, issue_type, issue, evidence, suggestion, confidence, fixability}], global_findings:[{severity, issue, evidence, suggestion, confidence}], limitations:[...]}。\n\n"
+        "{findings:[{flow_uuid, severity, fixability, evidence, action}]}。\n\n"
         f"输入摘要:\n{json.dumps(batch_summaries, ensure_ascii=False)}"
     )
     raw = _call_llm_chat(api_key=api_key, model=model, prompt=prompt, base_url=base_url)
@@ -788,30 +788,21 @@ def _normalize_llm_finding(
     severity = _coerce_text(item.get("severity")).lower() or "warning"
     if severity not in {"error", "warning", "info"}:
         severity = "warning"
-    issue_type = _coerce_text(item.get("issue_type")) or "semantic_review_issue"
-    rule_id = f"llm_{re.sub(r'[^a-z0-9_]+', '_', issue_type.lower()).strip('_') or 'semantic_review_issue'}"
-    message = _coerce_text(item.get("issue")) or _coerce_text(item.get("message")) or "LLM semantic review issue"
     fixability = _coerce_text(item.get("fixability")) or "review-needed"
+    action = _coerce_text(item.get("action")) or _coerce_text(item.get("suggestion")) or _coerce_text(item.get("suggested_action"))
     row: Dict[str, Any] = {
         "flow_uuid": flow_uuid,
         "base_version": base_version,
         "severity": severity,
-        "rule_id": rule_id,
-        "message": message,
         "fixability": fixability,
         "source": "llm",
+        "action": action,
     }
     evidence = item.get("evidence")
     if isinstance(evidence, dict):
         row["evidence"] = evidence
     elif evidence is not None:
         row["evidence"] = {"text": _coerce_text(evidence)}
-    suggestion = _coerce_text(item.get("suggestion"))
-    if suggestion:
-        row["suggested_action"] = suggestion
-    confidence = item.get("confidence")
-    if confidence is not None:
-        row["confidence"] = confidence
     return row
 
 
@@ -829,11 +820,8 @@ def _run_llm_review(
             "batch_count": 0,
             "reviewed_flow_count": 0,
             "truncated": False,
-            "overall_risk": "unknown",
             "batch_results": [],
             "llm_findings": [],
-            "global_findings": [],
-            "limitations": [],
         }
 
     if max_flows > 0:
@@ -849,9 +837,6 @@ def _run_llm_review(
 
     batch_results = []
     all_llm_findings: List[Dict[str, Any]] = []
-    global_findings: List[Dict[str, Any]] = []
-    limitations: List[str] = []
-    overall_risks: List[str] = []
 
     for idx, batch in enumerate(batches, start=1):
         # Remove internal fields before sending to LLM.
@@ -872,32 +857,18 @@ def _run_llm_review(
         if res.get("ok"):
             result = res.get("result") or {}
             if isinstance(result, dict):
-                risk = _coerce_text(result.get("overall_risk")).lower()
-                if risk:
-                    overall_risks.append(risk)
-                    batch_meta["overall_risk"] = risk
-
-                raw_flow_findings = result.get("flow_findings") or []
-                if isinstance(raw_flow_findings, list):
-                    for item in raw_flow_findings:
+                # Prefer the compact findings schema; fall back to legacy key for compatibility.
+                raw_findings = result.get("findings")
+                if not isinstance(raw_findings, list):
+                    raw_findings = result.get("flow_findings")
+                if isinstance(raw_findings, list):
+                    fallback_flow_uuid = _coerce_text(batch[0].get("flow_uuid")) if len(batch) == 1 else ""
+                    for item in raw_findings:
                         if not isinstance(item, dict):
                             continue
-                        norm = _normalize_llm_finding(item, summary_by_uuid)
+                        norm = _normalize_llm_finding(item, summary_by_uuid, fallback_flow_uuid=fallback_flow_uuid)
                         if norm:
                             all_llm_findings.append(norm)
-
-                raw_global_findings = result.get("global_findings") or []
-                if isinstance(raw_global_findings, list):
-                    for item in raw_global_findings:
-                        if isinstance(item, dict):
-                            global_findings.append(item)
-
-                raw_limits = result.get("limitations") or []
-                if isinstance(raw_limits, list):
-                    for item in raw_limits:
-                        text = _coerce_text(item)
-                        if text:
-                            limitations.append(text)
         else:
             if res.get("raw"):
                 batch_meta["raw_preview"] = _coerce_text(res.get("raw"))[:500]
@@ -909,25 +880,15 @@ def _run_llm_review(
     for f in all_llm_findings:
         key = (
             _coerce_text(f.get("flow_uuid")),
-            _coerce_text(f.get("rule_id")),
-            _coerce_text(f.get("message")),
+            _coerce_text(f.get("severity")),
+            _coerce_text(f.get("fixability")),
             json.dumps(f.get("evidence", {}), ensure_ascii=False, sort_keys=True),
+            _coerce_text(f.get("action")),
         )
         if key in seen:
             continue
         seen.add(key)
         deduped.append(f)
-
-    def _risk_aggregate(values: List[str]) -> str:
-        if not values:
-            return "unknown"
-        if "high" in values:
-            return "high"
-        if "medium" in values:
-            return "medium"
-        if "low" in values:
-            return "low"
-        return values[0]
 
     return {
         "enabled": True,
@@ -935,11 +896,8 @@ def _run_llm_review(
         "batch_count": len(batches),
         "reviewed_flow_count": len(target),
         "truncated": len(target) < len(summaries),
-        "overall_risk": _risk_aggregate(overall_risks),
         "batch_results": batch_results,
         "llm_findings": deduped,
-        "global_findings": global_findings,
-        "limitations": limitations,
     }
 
 
@@ -1140,7 +1098,7 @@ def main() -> None:
                 zh.append(f"- {k}: {v}\n")
 
         zh += [
-            "\n## Flow 摘要（前 100 条）\n",
+            "\n## Flow 摘要（最多展示 100 条）\n",
             "|flow uuid|version|typeOfDataSet|name(en)|class leaf|flow property|unitgroup ref unit|规则信号数|相似候选数|\n",
             "|---|---|---|---|---|---|---|---:|---:|\n",
         ]
@@ -1155,33 +1113,18 @@ def main() -> None:
 
         zh.append("\n## LLM 语义复审层（可选）\n")
         if llm_result.get("enabled") and llm_result.get("ok"):
-            zh.append(f"- overall_risk: `{llm_result.get('overall_risk', 'unknown')}`\n")
             if llm_result.get("truncated"):
                 zh.append(
                     f"- 注意：LLM 仅复审前 `{llm_result.get('reviewed_flow_count')}` 条（受 `--llm-max-flows` 限制）。\n"
                 )
             if llm_findings:
                 zh.append(
-                    "\n|flow uuid|severity|rule_id|message|suggested action|confidence|\n|---|---|---|---|---|---|\n"
+                    "\n|flow uuid|severity|fixability|evidence|action|\n|---|---|---|---|---|\n"
                 )
                 for f in llm_findings[:200]:
                     zh.append(
-                        f"|{str(f.get('flow_uuid','')).replace('|','/')}|{str(f.get('severity','')).replace('|','/')}|{str(f.get('rule_id','')).replace('|','/')}|{str(f.get('message','')).replace('|','/')}|{str(f.get('suggested_action','')).replace('|','/')}|{str(f.get('confidence','')).replace('|','/')}|\n"
+                        f"|{str(f.get('flow_uuid','')).replace('|','/')}|{str(f.get('severity','')).replace('|','/')}|{str(f.get('fixability','')).replace('|','/')}|{json.dumps(f.get('evidence', {}), ensure_ascii=False).replace('|','/')}|{str(f.get('action','')).replace('|','/')}|\n"
                     )
-            global_findings = llm_result.get("global_findings") or []
-            if global_findings:
-                zh.append("\n### 全局问题\n")
-                for g in global_findings[:20]:
-                    if not isinstance(g, dict):
-                        continue
-                    zh.append(
-                        f"- [{_coerce_text(g.get('severity')) or 'warning'}] {_coerce_text(g.get('issue'))} | 证据: {_coerce_text(g.get('evidence'))} | 建议: {_coerce_text(g.get('suggestion'))}\n"
-                    )
-            limits = llm_result.get("limitations") or []
-            if limits:
-                zh.append("\n### LLM 限制\n")
-                for item in limits[:50]:
-                    zh.append(f"- {_coerce_text(item)}\n")
         else:
             zh.append(f"- 未启用或调用失败：`{llm_result.get('reason', 'unknown')}`\n")
 
@@ -1205,7 +1148,6 @@ def main() -> None:
             f"- merged findings: **{len(merged_findings)}**\n",
         ]
         if llm_result.get("enabled") and llm_result.get("ok"):
-            en.append(f"- overall_risk: `{llm_result.get('overall_risk', 'unknown')}`\n")
             if llm_result.get("truncated"):
                 en.append(
                     f"- LLM reviewed only the first `{llm_result.get('reviewed_flow_count')}` flows due to `--llm-max-flows`.\n"

@@ -201,7 +201,7 @@ def llm_semantic_review(process_summaries: List[Dict[str, Any]], model: str) -> 
         "1) 只根据给定摘要；\n"
         "2) 证据不足必须明确标注；\n"
         "3) 输出 JSON，格式："
-        "{overall_risk:'low|medium|high', findings:[{process_file, severity, issue, evidence, suggestion, confidence}], limitations:[...]}.\n\n"
+        "{findings:[{process_file, severity, fixability, evidence, action}]}.\n\n"
         f"输入摘要:\n{json.dumps(process_summaries, ensure_ascii=False)}"
     )
     txt = _call_llm_chat(api_key=api_key, model=model, prompt=prompt, base_url=base_url)
@@ -345,19 +345,17 @@ def main():
     ]
     if llm_result.get("enabled") and llm_result.get("ok"):
         res = llm_result.get("result", {})
-        zh.append(f"- overall_risk: `{res.get('overall_risk', 'unknown')}`\n")
         findings = res.get("findings") or []
         if findings:
-            zh.append("\n|process file|severity|issue|evidence|suggestion|confidence|\n|---|---|---|---|---|---|\n")
+            zh.append("\n|process file|severity|fixability|evidence|action|\n|---|---|---|---|---|\n")
             for f in findings[:50]:
+                evidence = f.get("evidence", {})
+                if not isinstance(evidence, str):
+                    evidence = json.dumps(evidence, ensure_ascii=False)
+                action = str(f.get("action") or f.get("suggestion") or "").replace("|", "/")
                 zh.append(
-                    f"|{str(f.get('process_file','')).replace('|','/')}|{str(f.get('severity','')).replace('|','/')}|{str(f.get('issue','')).replace('|','/')}|{str(f.get('evidence','')).replace('|','/')}|{str(f.get('suggestion','')).replace('|','/')}|{str(f.get('confidence','')).replace('|','/')}|\n"
+                    f"|{str(f.get('process_file','')).replace('|','/')}|{str(f.get('severity','')).replace('|','/')}|{str(f.get('fixability','review-needed')).replace('|','/')}|{str(evidence).replace('|','/')}|{action}|\n"
                 )
-        limits = res.get("limitations") or []
-        if limits:
-            zh.append("\n- LLM 限制：\n")
-            for it in limits:
-                zh.append(f"  - {it}\n")
     else:
         zh.append(f"- 未启用或调用失败：`{llm_result.get('reason', 'unknown')}`\n")
 
