@@ -1,10 +1,8 @@
-# Output Schemas (Initial Version)
-
-These schemas are intentionally lightweight so they can evolve while the workflow is tested.
+# Output Schemas
 
 ## `review/findings.jsonl`
 
-Produced by `lci-review --profile flow` and consumed by `flow-remediator-publisher propose-fix`.
+Produced by `lci-review --profile flow` and consumed by `flow-remediator-publisher llm-remediate`.
 
 One JSON object per finding.
 
@@ -21,69 +19,70 @@ Common fields:
 - `source` (optional, e.g. `rule` or `llm`)
 - `confidence` (optional, mainly for LLM findings)
 
-Example:
+## `fix/remediation_actions.jsonl`
 
-```json
-{
-  "flow_uuid": "bdbb913b-620c-42a0-baf6-c5802a2b6c4b",
-  "base_version": "01.01.000",
-  "severity": "warning",
-  "rule_id": "quantitative_reference_mismatch",
-  "message": "Quantitative reference internal ID does not match the chosen reference flowProperty.",
-  "fixability": "auto",
-  "evidence": {
-    "quant_ref_internal_id": "1",
-    "expected_internal_id": "0"
-  },
-  "suggested_action": "Align quantitative reference with chosen flowProperty internal ID."
-}
-```
+One row per finding remediation attempt (append-only log for orchestration/debugging).
 
-## `fix/fix_proposals.jsonl`
+Key fields:
 
-Two modes in initial version:
+- `flow_uuid`
+- `base_version`
+- `finding_index`
+- `issue` (normalized finding payload)
+- `input_contract`:
+- `flow_uuid`
+- `base_version`
+- `original_flow_json` (full flow JSON at remediation time)
+- `issue`
+- `constraints`
+- `llm_output`:
+- `modified`: `true|false`
+- `reason`: `string`
+- `patched_flow_json`: `object|null`
+- `changes`: `[{path,before,after,rationale}]`
+- `needs_regen_service`: `true|false`
+- `status`: `applied|no_change|no_effect|llm_error|llm_unavailable|invalid_response_missing_patch|regen_failed|schema_failed`
+- `modified_requested`: `bool`
+- `modified_applied`: `bool`
+- `schema_valid` (optional bool)
+- `schema_error` (optional string)
+- `regen_meta` (optional object)
 
-- `mode=applied`: deterministic patch ops already applied to `patched_flows`
-- `mode=candidate`: non-deterministic/high-risk findings requiring manual review or regeneration
+## `fix/modified_flags.jsonl`
 
-Example `applied`:
+One row per flow UUID.
 
-```json
-{
-  "flow_uuid": "bdbb913b-620c-42a0-baf6-c5802a2b6c4b",
-  "base_version": "01.01.000",
-  "mode": "applied",
-  "rule_id": "safe_fix_batch",
-  "patch_ops": [
-    {
-      "op": "set",
-      "path": "/flowDataSet/flowInformation/quantitativeReference/referenceToReferenceFlowProperty",
-      "value": "0",
-      "rule_id": "quantitative_reference_alignment"
-    }
-  ]
-}
-```
+Key fields:
 
-Example `candidate`:
+- `flow_uuid`
+- `base_version`
+- `modified`: `true|false`
+- `finding_count`
+- `applied_issue_count`
+- `schema_valid`
+- `schema_error` (optional)
+- `patched_file` (optional; present when file emitted)
 
-```json
-{
-  "flow_uuid": "bdbb913b-620c-42a0-baf6-c5802a2b6c4b",
-  "base_version": "01.01.000",
-  "mode": "candidate",
-  "rule_id": "same_category_high_similarity",
-  "severity": "warning",
-  "message": "Another flow in the same classification/flowProperty/unitgroup group is highly similar.",
-  "next_step": "manual-review-or-regenerate"
-}
-```
+## `fix/version_bump_log.jsonl`
+
+One row per manifest entry handled by `bump-version-if-needed`.
+
+Key fields:
+
+- `flow_uuid`
+- `base_version`
+- `before_version`
+- `expected_version`
+- `after_version`
+- `patched_file`
+- `status`: `ok|skipped_unchanged|error`
+- `bumped`: `true|false`
 
 ## `fix/patch_manifest.jsonl`
 
-One row per patched/copied flow file, used by `publish`.
+One row per patched/copied flow file used by downstream stages.
 
-Fields:
+Key fields:
 
 - `flow_uuid`
 - `base_version`
@@ -91,6 +90,10 @@ Fields:
 - `source_file`
 - `patched_file`
 - `changed`
+- `modified` (alias of changed)
+- `schema_valid`
+- `schema_error`
+- `version_bumped` (optional)
 - `before_sha256`
 - `after_sha256`
 
@@ -104,6 +107,7 @@ Status values:
 - `inserted`
 - `conflict`
 - `error`
+- `skipped` (for schema gate or explicit gating)
 
 Important fields:
 
@@ -113,13 +117,16 @@ Important fields:
 - `new_version`
 - `mode`
 - `status`
-- `reason` (when conflict/error)
+- `reason` (when skipped/conflict/error)
 - `insert_result` (when `insert`)
+- `version_retargeted` / `retarget_reason` (when base drift but semantic-equal auto-retarget applied)
+- `latest_version_after_conflict` / `retry_version` / `retried_after_conflict` (when insert conflict retry path triggered)
+- `conflict_retry_basis` / `retry_attempts` (when blind or semantic-guided sequential +1 retry is used)
 
 ## Alignment Target
 
 Keep this skill compatible with evolving `lci-review --profile flow` outputs by:
 
 - mapping external review findings into the same `findings.jsonl` shape
-- preserving `fix_proposals.jsonl` and `patch_manifest.jsonl` contracts
+- preserving `patch_manifest.jsonl` publish contract
 - keeping publish append-only and versioned

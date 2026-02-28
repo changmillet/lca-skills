@@ -3,7 +3,7 @@
 
 This script is intentionally split into subcommands so it can be used as:
 - a one-shot pipeline (`pipeline`)
-- or a staged workflow (`fetch`, `review`, `propose-fix`, `validate`, `publish`)
+- or a staged workflow (`fetch`, `review`, `llm-remediate`, `validate-schema`, `validate`, `publish`)
 
 Design goals for the initial version:
 - No direct DB access; all remote access goes through MCP CRUD.
@@ -17,9 +17,11 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -370,6 +372,35 @@ def _bump_ilcd_version(version: str) -> str:
     a, b, c = match.groups()
     c_num = int(c) + 1
     return f"{int(a):0{len(a)}d}.{int(b):0{len(b)}d}.{c_num:0{len(c)}d}"
+
+
+def _flow_wrapper_without_version(doc: Mapping[str, Any]) -> dict[str, Any]:
+    wrapper = _flow_wrapper(doc)
+    flow_ds = wrapper.get("flowDataSet")
+    if not isinstance(flow_ds, MutableMapping):
+        return wrapper
+    admin = flow_ds.get("administrativeInformation")
+    if not isinstance(admin, MutableMapping):
+        return wrapper
+    pub = admin.get("publicationAndOwnership")
+    if not isinstance(pub, MutableMapping):
+        return wrapper
+    pub.pop("common:dataSetVersion", None)
+    return wrapper
+
+
+def _sha256_flow_without_version(doc: Mapping[str, Any]) -> str:
+    return _sha256_json(_flow_wrapper_without_version(doc))
+
+
+def _is_version_conflict_error(message: str) -> bool:
+    text = (message or "").strip().lower()
+    if not text:
+        return False
+    if "version" not in text and "data_set_version" not in text and "dataset_version" not in text:
+        return False
+    conflict_tokens = ("duplicate", "already exists", "unique", "conflict", "violates")
+    return any(token in text for token in conflict_tokens)
 
 
 def _json_pointer_set(root: MutableMapping[str, Any], pointer: str, value: Any) -> None:
@@ -1120,55 +1151,6 @@ def _build_flow_file_index(flows_dir: Path) -> dict[str, Path]:
     return index
 
 
-def _apply_safe_fixes(
-    flow_doc: Mapping[str, Any],
-    flow_findings: list[dict[str, Any]],
-) -> tuple[dict[str, Any], list[dict[str, Any]], bool]:
-    wrapper = _flow_wrapper(flow_doc)
-    flow_ds = wrapper["flowDataSet"]
-    applied_ops: list[dict[str, Any]] = []
-    changed = False
-
-    chosen_prop, chosen_internal_id = _pick_reference_flow_property(flow_ds)
-    expected_internal_id = chosen_internal_id or _coerce_text((chosen_prop or {}).get("@dataSetInternalID"))
-    version = _flow_version(flow_ds) or "01.01.000"
-
-    # Apply deterministic fixes only once even if multiple findings repeat.
-    rule_ids = {str(item.get("rule_id")) for item in flow_findings}
-
-    if "missing_dataset_version" in rule_ids:
-        current = _flow_version(flow_ds)
-        if not current:
-            _set_flow_version(flow_ds, version)
-            applied_ops.append(
-                {
-                    "op": "set",
-                    "path": "/flowDataSet/administrativeInformation/publicationAndOwnership/common:dataSetVersion",
-                    "value": version,
-                    "rule_id": "missing_dataset_version",
-                }
-            )
-            changed = True
-
-    if expected_internal_id and (
-        "missing_quantitative_reference" in rule_ids or "quantitative_reference_mismatch" in rule_ids
-    ):
-        current_quant = _quant_ref_internal_id(flow_ds)
-        if current_quant != expected_internal_id:
-            _set_quant_ref_internal_id(flow_ds, expected_internal_id)
-            applied_ops.append(
-                {
-                    "op": "set",
-                    "path": "/flowDataSet/flowInformation/quantitativeReference/referenceToReferenceFlowProperty",
-                    "value": expected_internal_id,
-                    "rule_id": "quantitative_reference_alignment",
-                }
-            )
-            changed = True
-
-    return wrapper, applied_ops, changed
-
-
 def _summarize_findings_by_flow(findings: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for item in findings:
@@ -1179,12 +1161,455 @@ def _summarize_findings_by_flow(findings: list[dict[str, Any]]) -> dict[str, lis
     return grouped
 
 
-def _propose_fixes(
+def _coerce_bool(value: Any, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    text = _coerce_text(value).lower()
+    if text in {"true", "1", "yes", "y"}:
+        return True
+    if text in {"false", "0", "no", "n"}:
+        return False
+    return default
+
+
+def _set_flow_uuid(flow_ds: MutableMapping[str, Any], value: str) -> None:
+    flow_ds.setdefault("flowInformation", {})
+    info = flow_ds["flowInformation"]
+    if not isinstance(info, MutableMapping):
+        flow_ds["flowInformation"] = {}
+        info = flow_ds["flowInformation"]
+    info.setdefault("dataSetInformation", {})
+    data_info = info["dataSetInformation"]
+    if not isinstance(data_info, MutableMapping):
+        info["dataSetInformation"] = {}
+        data_info = info["dataSetInformation"]
+    data_info["common:UUID"] = value
+
+
+def _flow_classification_node(flow_ds: Mapping[str, Any]) -> Any:
+    return _deep_get(
+        flow_ds,
+        (
+            "flowInformation",
+            "dataSetInformation",
+            "classificationInformation",
+            "common:classification",
+            "common:class",
+        ),
+    )
+
+
+def _classification_changed(before_doc: Mapping[str, Any], after_doc: Mapping[str, Any]) -> bool:
+    before_classes = _as_list(_flow_classification_node(_flow_root(before_doc)))
+    after_classes = _as_list(_flow_classification_node(_flow_root(after_doc)))
+    return _sha256_json(before_classes) != _sha256_json(after_classes)
+
+
+def _parse_llm_json(raw: str) -> dict[str, Any]:
+    cleaned = raw.strip()
+    if not cleaned:
+        raise ValueError("empty_llm_response")
+    try:
+        _ensure_process_builder_on_syspath()
+        from tiangong_lca_spec.core.json_utils import parse_json_response
+
+        parsed = parse_json_response(cleaned)
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+    except Exception:
+        pass
+    try:
+        parsed = json.loads(cleaned)
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+    except Exception:
+        pass
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start >= 0 and end > start:
+        parsed = json.loads(cleaned[start : end + 1])
+        if isinstance(parsed, Mapping):
+            return dict(parsed)
+    raise ValueError("non_json_llm_response")
+
+
+def _validate_ilcd_flow_schema(flow_doc: Mapping[str, Any]) -> tuple[bool, str]:
+    wrapper = _flow_wrapper(flow_doc)
+    try:
+        from tidas_sdk import create_flow
+
+        create_flow(wrapper, validate=True)
+        return True, ""
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
+def _issue_payload(finding: Mapping[str, Any]) -> dict[str, Any]:
+    payload = {
+        "rule_id": _coerce_text(finding.get("rule_id")),
+        "message": _coerce_text(finding.get("message")),
+        "severity": _coerce_text(finding.get("severity")),
+        "fixability": _coerce_text(finding.get("fixability")),
+    }
+    evidence = finding.get("evidence")
+    if isinstance(evidence, Mapping):
+        payload["evidence"] = dict(evidence)
+    suggestion = _coerce_text(finding.get("suggested_action") or finding.get("action") or finding.get("suggestion"))
+    if suggestion:
+        payload["suggestion"] = suggestion
+    return payload
+
+
+def _build_remediation_constraints() -> dict[str, Any]:
+    return {
+        "must_follow_schema": "patched_flow_json must conform to ILCD FlowDataSet schema.",
+        "classification_policy": (
+            "Do not directly finalize classification/category values in patched_flow_json when classification/name/category "
+            "rebuild is needed. Set needs_regen_service=true and provide classification intent/candidates only."
+        ),
+        "minimal_change": "Prefer minimal patch scope for this issue only.",
+        "allow_no_change": True,
+    }
+
+
+def _build_remediation_contract(
+    *,
+    flow_uuid: str,
+    base_version: str,
+    flow_doc: Mapping[str, Any],
+    finding: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        "flow_uuid": flow_uuid,
+        "base_version": base_version,
+        "original_flow_json": _flow_wrapper(flow_doc),
+        "issue": _issue_payload(finding),
+        "constraints": _build_remediation_constraints(),
+    }
+
+
+def _build_llm_remediation_prompt(contract: Mapping[str, Any]) -> str:
+    return (
+        "You are an ILCD flow remediation assistant.\n"
+        "Return strict JSON only with keys:\n"
+        "- modified: true|false\n"
+        "- reason: string\n"
+        "- patched_flow_json: object|null\n"
+        "- changes: [{path,before,after,rationale}]\n"
+        "- needs_regen_service: true|false\n"
+        "Optional extra key allowed: classification_intent (object|string|array).\n\n"
+        "Rules:\n"
+        "1) Follow ILCD flow schema.\n"
+        "2) Make minimal changes scoped to the issue.\n"
+        "3) If unsure, set modified=false.\n"
+        "4) If classification/category/name rebuild is needed, set needs_regen_service=true.\n"
+        "5) Never output natural-language explanations outside JSON.\n\n"
+        f"Input:\n{json.dumps(contract, ensure_ascii=False)}"
+    )
+
+
+def _openai_chat_json(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    model: str,
+    api_key: str,
+    base_url: str,
+    timeout_sec: int,
+) -> dict[str, Any]:
+    if not api_key:
+        return {"ok": False, "error": "OPENAI_API_KEY missing"}
+    token = api_key.strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    endpoint = base_url.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": model,
+        "temperature": 0,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    }
+    req = urllib.request.Request(
+        endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=max(10, int(timeout_sec))) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return {"ok": False, "error": "llm_missing_choices", "raw_body": body}
+    content = choices[0].get("message", {}).get("content")
+    text = _coerce_text(content)
+    if not text:
+        return {"ok": False, "error": "llm_empty_content", "raw_body": body}
+    try:
+        parsed = _parse_llm_json(text)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": f"llm_non_json:{exc}", "raw": text}
+    return {"ok": True, "parsed": parsed, "raw": text}
+
+
+def _normalize_remediation_changes(value: Any) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in _as_list(value):
+        if not isinstance(item, Mapping):
+            continue
+        path = _coerce_text(item.get("path"))
+        if not path:
+            continue
+        rows.append(
+            {
+                "path": path,
+                "before": item.get("before"),
+                "after": item.get("after"),
+                "rationale": _coerce_text(item.get("rationale") or item.get("reason")),
+            }
+        )
+    return rows
+
+
+def _normalize_llm_remediation_result(raw: Mapping[str, Any] | None) -> dict[str, Any]:
+    data = dict(raw) if isinstance(raw, Mapping) else {}
+    patched = data.get("patched_flow_json")
+    patched_json: dict[str, Any] | None = None
+    if isinstance(patched, Mapping):
+        patched_json = copy.deepcopy(dict(patched))
+    elif isinstance(patched, str) and patched.strip():
+        try:
+            parsed = _parse_llm_json(patched)
+            patched_json = parsed
+        except Exception:
+            patched_json = None
+    return {
+        "modified": _coerce_bool(data.get("modified"), default=False),
+        "reason": _coerce_text(data.get("reason")),
+        "patched_flow_json": patched_json,
+        "changes": _normalize_remediation_changes(data.get("changes")),
+        "needs_regen_service": _coerce_bool(data.get("needs_regen_service"), default=False),
+        "classification_intent": data.get("classification_intent"),
+    }
+
+
+def _issue_needs_regen(finding: Mapping[str, Any]) -> bool:
+    text = " ".join(
+        [
+            _coerce_text(finding.get("rule_id")),
+            _coerce_text(finding.get("message")),
+            _coerce_text(finding.get("suggested_action")),
+        ]
+    ).lower()
+    keywords = [
+        "classification",
+        "category",
+        "class_id",
+        "classid",
+        "name",
+        "base_name",
+        "mixandlocationtypes",
+        "treatmentstandardsroutes",
+        "分类",
+        "类别",
+        "名称",
+    ]
+    return any(token in text for token in keywords)
+
+
+def _split_terms(value: str) -> list[str]:
+    if not value:
+        return []
+    raw = value.replace("；", ";")
+    out: list[str] = []
+    for chunk in raw.split(";"):
+        for piece in chunk.split(","):
+            token = piece.strip()
+            if token:
+                out.append(token)
+    return out
+
+
+def _collect_hint_terms(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return _split_terms(value)
+    if isinstance(value, Mapping):
+        out: list[str] = []
+        for item in value.values():
+            out.extend(_collect_hint_terms(item))
+        return out
+    if isinstance(value, list):
+        out: list[str] = []
+        for item in value:
+            out.extend(_collect_hint_terms(item))
+        return out
+    text = _coerce_text(value)
+    return _split_terms(text)
+
+
+def _collect_classification_hints(
+    *,
+    finding: Mapping[str, Any],
+    llm_result: Mapping[str, Any],
+    candidate_doc: Mapping[str, Any] | None,
+) -> list[str]:
+    hints: list[str] = []
+    hints.extend(_collect_hint_terms(llm_result.get("classification_intent")))
+    hints.extend(_collect_hint_terms(llm_result.get("reason")))
+    hints.extend(_collect_hint_terms(finding.get("message")))
+    hints.extend(_collect_hint_terms(finding.get("suggested_action")))
+    for change in _as_list(llm_result.get("changes")):
+        if not isinstance(change, Mapping):
+            continue
+        path = _coerce_text(change.get("path")).lower()
+        if "classification" in path or "name" in path:
+            hints.extend(_collect_hint_terms(change.get("after")))
+            hints.extend(_collect_hint_terms(change.get("rationale")))
+    if candidate_doc is not None:
+        flow_ds = _flow_root(candidate_doc)
+        hints.extend(_collect_hint_terms(_name_primary(flow_ds, "en")))
+        hints.extend(_collect_hint_terms(_name_primary(flow_ds, "zh")))
+        hints.extend(_collect_hint_terms([item.get("#text") for item in _classification_classes(flow_ds) if isinstance(item, Mapping)]))
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in hints:
+        text = item.strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(text)
+        if len(deduped) >= 12:
+            break
+    return deduped
+
+
+def _build_selector_exchange_and_hints(
+    flow_doc: Mapping[str, Any],
+    finding: Mapping[str, Any],
+    hint_terms: list[str],
+) -> tuple[dict[str, Any], dict[str, list[str] | str]]:
+    flow_ds = _flow_root(flow_doc)
+    comments = _deep_get(flow_ds, ("flowInformation", "dataSetInformation", "common:generalComment"))
+    synonyms = _deep_get(flow_ds, ("flowInformation", "dataSetInformation", "common:synonyms"))
+    exchange = {
+        "exchangeName": _name_primary(flow_ds, "en") or _name_primary(flow_ds, "zh") or _flow_uuid(flow_ds),
+        "exchangeDirection": "output",
+        "generalComment": _lang_text(comments, "en") or _lang_text(comments, "zh"),
+        "classificationInformation": {
+            "common:classification": {
+                "common:class": _classification_classes(flow_ds),
+            }
+        },
+    }
+    hints: dict[str, list[str] | str] = {
+        "classification_hints": hint_terms,
+        "en_synonyms": _split_terms(_lang_text(synonyms, "en")),
+        "zh_synonyms": _split_terms(_lang_text(synonyms, "zh")),
+        "usage_context": [_coerce_text(finding.get("rule_id")), _coerce_text(finding.get("message"))],
+    }
+    return exchange, hints
+
+
+def _classification_entries_from_path(path: list[tuple[str, str]]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for idx, (code, text) in enumerate(path):
+        row = {"@level": str(idx), "#text": _coerce_text(text)}
+        code_text = _coerce_text(code)
+        if code_text:
+            row["@classId"] = code_text
+        rows.append(row)
+    return rows
+
+
+def _regenerate_flow_via_creation_service(
+    *,
+    flow_doc: Mapping[str, Any],
+    finding: Mapping[str, Any],
+    llm_result: Mapping[str, Any],
+    candidate_doc: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    _ensure_process_builder_on_syspath()
+    from tiangong_lca_spec.product_flow_creation import ProductFlowCreateRequest, ProductFlowCreationService
+    from tiangong_lca_spec.publishing.crud import FlowProductCategorySelector
+
+    request_payload = _request_from_existing_flow(flow_doc)
+    if candidate_doc is not None:
+        candidate_request = _request_from_existing_flow(candidate_doc)
+        for key in (
+            "base_name_en",
+            "base_name_zh",
+            "treatment_en",
+            "treatment_zh",
+            "mix_en",
+            "mix_zh",
+            "comment_en",
+            "comment_zh",
+            "synonyms_en",
+            "synonyms_zh",
+        ):
+            value = candidate_request.get(key)
+            if isinstance(value, list):
+                request_payload[key] = [item for item in value if _coerce_text(item)]
+            elif _coerce_text(value):
+                request_payload[key] = value
+
+    hint_terms = _collect_classification_hints(
+        finding=finding,
+        llm_result=llm_result,
+        candidate_doc=candidate_doc,
+    )
+    selected_path: list[tuple[str, str]] = []
+    if _coerce_text(request_payload.get("flow_type")).lower() == "product flow":
+        selector = FlowProductCategorySelector(llm=None)
+        exchange, hints = _build_selector_exchange_and_hints(flow_doc, finding, hint_terms)
+        selected_path = selector.select_path(exchange, hints)
+        if selected_path:
+            classification = _classification_entries_from_path(selected_path)
+            request_payload["classification"] = classification
+            request_payload["class_id"] = _coerce_text(classification[-1].get("@classId"))
+
+    flow_ds = _flow_root(flow_doc)
+    request_payload["flow_uuid"] = _flow_uuid(flow_ds)
+    request_payload["version"] = _flow_version(flow_ds) or _coerce_text(request_payload.get("version")) or "01.01.000"
+    request = ProductFlowCreateRequest(**request_payload)
+    service = ProductFlowCreationService()
+    result = service.build(request, allow_validation_fallback=False)
+    meta = {
+        "used_regen_service": True,
+        "used_decision_tree": bool(selected_path),
+        "selected_path": [
+            {"code": _coerce_text(code), "text": _coerce_text(text)}
+            for code, text in selected_path
+        ],
+        "hint_terms": hint_terms,
+    }
+    return result.payload, meta
+
+
+def _llm_remediate_findings(
     flows_dir: Path,
     findings_path: Path,
     out_dir: Path,
     *,
     copy_unchanged: bool = False,
+    llm_model: str | None = None,
+    llm_base_url: str | None = None,
+    llm_api_key: str | None = None,
+    llm_timeout_sec: int = 120,
 ) -> dict[str, Any]:
     findings = _load_jsonl(findings_path)
     findings_by_flow = _summarize_findings_by_flow(findings)
@@ -1192,65 +1617,181 @@ def _propose_fixes(
     if not flow_files:
         raise RuntimeError(f"No flow JSON files found in {flows_dir}")
 
+    resolved_model = (
+        _coerce_text(llm_model)
+        or _coerce_text(os.getenv("OPENAI_MODEL"))
+        or _coerce_text(os.getenv("LCA_OPENAI_MODEL"))
+        or "gpt-4o-mini"
+    )
+    resolved_base_url = (
+        _coerce_text(llm_base_url)
+        or _coerce_text(os.getenv("OPENAI_BASE_URL"))
+        or _coerce_text(os.getenv("LCA_OPENAI_BASE_URL"))
+        or "https://api.openai.com/v1"
+    )
+    resolved_api_key = (
+        _coerce_text(llm_api_key)
+        or _coerce_text(os.getenv("OPENAI_API_KEY"))
+        or _coerce_text(os.getenv("LCA_OPENAI_API_KEY"))
+    )
+    llm_enabled = bool(resolved_api_key)
+
     patched_dir = out_dir / "patched_flows"
     patched_dir.mkdir(parents=True, exist_ok=True)
 
-    proposals: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    modified_flags: list[dict[str, Any]] = []
     manifest: list[dict[str, Any]] = []
     changed_count = 0
     copied_count = 0
+    issue_applied_count = 0
+    issue_no_change_count = 0
+    issue_error_count = 0
+
+    system_prompt = (
+        "You are a strict ILCD flow remediator. Output JSON only. "
+        "Do not add markdown. Use the required keys exactly."
+    )
 
     for flow_file in flow_files:
         doc = _read_json(flow_file)
-        flow_ds = _flow_root(doc)
+        original_wrapper = _flow_wrapper(doc)
+        working_wrapper = copy.deepcopy(original_wrapper)
+        flow_ds = _flow_root(original_wrapper)
         flow_uuid = _flow_uuid(flow_ds)
         if not flow_uuid:
             continue
+        base_version = _flow_version(flow_ds)
         flow_findings = findings_by_flow.get(flow_uuid, [])
-        patched_wrapper, applied_ops, changed = _apply_safe_fixes(doc, flow_findings)
+        flow_applied_issues = 0
 
-        # Emit candidate entries for non-auto findings so humans know what is pending.
-        for item in flow_findings:
-            fixability = _coerce_text(item.get("fixability")) or "manual"
-            if fixability == "auto":
-                continue
-            proposals.append(
-                {
-                    "flow_uuid": flow_uuid,
-                    "base_version": _coerce_text(item.get("base_version")),
-                    "mode": "candidate",
-                    "rule_id": _coerce_text(item.get("rule_id")),
-                    "severity": _coerce_text(item.get("severity")),
-                    "message": _coerce_text(item.get("message")),
-                    "next_step": "manual-review-or-regenerate",
-                }
+        for issue_idx, finding in enumerate(flow_findings, start=1):
+            contract = _build_remediation_contract(
+                flow_uuid=flow_uuid,
+                base_version=base_version,
+                flow_doc=working_wrapper,
+                finding=finding,
             )
+            llm_output = _normalize_llm_remediation_result(None)
+            action_status = "no_change"
+            schema_valid: bool | None = None
+            schema_error = ""
+            regen_meta: dict[str, Any] | None = None
 
-        if applied_ops:
-            proposals.append(
-                {
-                    "flow_uuid": flow_uuid,
-                    "base_version": _flow_version(flow_ds),
-                    "mode": "applied",
-                    "rule_id": "safe_fix_batch",
-                    "patch_ops": applied_ops,
-                }
-            )
+            if llm_enabled:
+                llm_call = _openai_chat_json(
+                    system_prompt=system_prompt,
+                    user_prompt=_build_llm_remediation_prompt(contract),
+                    model=resolved_model,
+                    api_key=resolved_api_key,
+                    base_url=resolved_base_url,
+                    timeout_sec=llm_timeout_sec,
+                )
+                if not bool(llm_call.get("ok")):
+                    action_status = "llm_error"
+                    schema_error = _coerce_text(llm_call.get("error"))
+                else:
+                    llm_output = _normalize_llm_remediation_result(llm_call.get("parsed"))
+                    needs_regen_service = _coerce_bool(llm_output.get("needs_regen_service"), default=False) or _issue_needs_regen(
+                        finding
+                    )
+                    candidate_doc: dict[str, Any] | None = None
+                    if isinstance(llm_output.get("patched_flow_json"), Mapping):
+                        candidate_doc = _flow_wrapper(llm_output["patched_flow_json"])
+
+                    if _coerce_bool(llm_output.get("modified"), default=False):
+                        if candidate_doc is None and not needs_regen_service:
+                            action_status = "invalid_response_missing_patch"
+                            schema_error = "modified=true but patched_flow_json is null"
+                        else:
+                            if candidate_doc is not None and _classification_changed(working_wrapper, candidate_doc):
+                                needs_regen_service = True
+                            if needs_regen_service:
+                                try:
+                                    candidate_doc, regen_meta = _regenerate_flow_via_creation_service(
+                                        flow_doc=working_wrapper,
+                                        finding=finding,
+                                        llm_result=llm_output,
+                                        candidate_doc=candidate_doc,
+                                    )
+                                except Exception as exc:  # noqa: BLE001
+                                    candidate_doc = None
+                                    action_status = "regen_failed"
+                                    schema_error = str(exc)
+                            if candidate_doc is not None:
+                                candidate_flow_ds = _flow_root(candidate_doc)
+                                _set_flow_uuid(candidate_flow_ds, flow_uuid)
+                                if base_version:
+                                    _set_flow_version(candidate_flow_ds, base_version)
+                                schema_valid, schema_error = _validate_ilcd_flow_schema(candidate_doc)
+                                if schema_valid:
+                                    if _sha256_json(candidate_doc) != _sha256_json(working_wrapper):
+                                        working_wrapper = candidate_doc
+                                        flow_applied_issues += 1
+                                        issue_applied_count += 1
+                                        action_status = "applied"
+                                    else:
+                                        action_status = "no_effect"
+                                else:
+                                    action_status = "schema_failed"
+                    else:
+                        action_status = "no_change"
+            else:
+                action_status = "llm_unavailable"
+                schema_error = "OPENAI_API_KEY missing"
+
+            if action_status in {"applied"}:
+                pass
+            elif action_status in {"no_change", "no_effect", "llm_unavailable"}:
+                issue_no_change_count += 1
+            else:
+                issue_error_count += 1
+
+            action_row: dict[str, Any] = {
+                "flow_uuid": flow_uuid,
+                "base_version": base_version,
+                "finding_index": issue_idx,
+                "issue": _issue_payload(finding),
+                "input_contract": contract,
+                "llm_output": llm_output,
+                "status": action_status,
+                "modified_requested": _coerce_bool(llm_output.get("modified"), default=False),
+                "modified_applied": action_status == "applied",
+                "needs_regen_service": _coerce_bool(llm_output.get("needs_regen_service"), default=False),
+            }
+            if schema_valid is not None:
+                action_row["schema_valid"] = schema_valid
+            if schema_error:
+                action_row["schema_error"] = schema_error
+            if regen_meta:
+                action_row["regen_meta"] = regen_meta
+            actions.append(action_row)
+
+        changed = _sha256_json(working_wrapper) != _sha256_json(original_wrapper)
+        final_schema_valid, final_schema_error = _validate_ilcd_flow_schema(working_wrapper if changed else original_wrapper)
+        out_path = patched_dir / flow_file.name
 
         if not changed and not copy_unchanged:
+            modified_flags.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "base_version": base_version,
+                    "modified": False,
+                    "finding_count": len(flow_findings),
+                    "applied_issue_count": flow_applied_issues,
+                    "schema_valid": final_schema_valid,
+                }
+            )
             continue
 
-        out_name = flow_file.name
-        out_path = patched_dir / out_name
         if changed:
-            _write_json(out_path, patched_wrapper)
+            _write_json(out_path, working_wrapper)
             changed_count += 1
         else:
-            _write_json(out_path, doc)
+            _write_json(out_path, original_wrapper)
             copied_count += 1
 
-        patched_root = _flow_root(patched_wrapper if changed else doc)
-        base_version = _flow_version(flow_ds)
+        patched_root = _flow_root(working_wrapper if changed else original_wrapper)
         manifest.append(
             {
                 "flow_uuid": flow_uuid,
@@ -1259,23 +1800,255 @@ def _propose_fixes(
                 "source_file": str(flow_file),
                 "patched_file": str(out_path),
                 "changed": changed,
-                "before_sha256": _sha256_json(_flow_wrapper(doc)),
-                "after_sha256": _sha256_json(_flow_wrapper(patched_wrapper if changed else doc)),
+                "modified": changed,
+                "schema_valid": final_schema_valid,
+                "schema_error": final_schema_error,
+                "before_sha256": _sha256_json(original_wrapper),
+                "before_sha256_no_version": _sha256_flow_without_version(original_wrapper),
+                "after_sha256": _sha256_json(working_wrapper if changed else original_wrapper),
+                "after_sha256_no_version": _sha256_flow_without_version(working_wrapper if changed else original_wrapper),
+            }
+        )
+        modified_flags.append(
+            {
+                "flow_uuid": flow_uuid,
+                "base_version": base_version,
+                "modified": changed,
+                "finding_count": len(flow_findings),
+                "applied_issue_count": flow_applied_issues,
+                "schema_valid": final_schema_valid,
+                "schema_error": final_schema_error,
+                "patched_file": str(out_path),
             }
         )
 
-    _write_jsonl(out_dir / "fix_proposals.jsonl", proposals)
+    _write_jsonl(out_dir / "remediation_actions.jsonl", actions)
+    _write_jsonl(out_dir / "modified_flags.jsonl", modified_flags)
     _write_jsonl(out_dir / "patch_manifest.jsonl", manifest)
     summary = {
+        "llm_enabled": llm_enabled,
+        "llm_model": resolved_model,
         "input_flow_count": len(flow_files),
         "flows_with_findings": len(findings_by_flow),
-        "patched_file_count": len(manifest),
+        "finding_count": len(findings),
+        "remediation_action_count": len(actions),
+        "patch_manifest_count": len(manifest),
         "changed_count": changed_count,
         "copied_unchanged_count": copied_count,
-        "proposal_count": len(proposals),
+        "issue_applied_count": issue_applied_count,
+        "issue_no_change_count": issue_no_change_count,
+        "issue_error_count": issue_error_count,
     }
+    _write_json(out_dir / "remediation_summary.json", summary)
     _write_json(out_dir / "fix_summary.json", summary)
     return summary
+
+
+def _bump_versions_if_needed(
+    manifest_path: Path,
+    out_dir: Path,
+    *,
+    include_unchanged: bool = False,
+) -> dict[str, Any]:
+    rows = _load_jsonl(manifest_path)
+    if not rows:
+        summary = {"row_count": 0, "changed_count": 0, "bumped_count": 0, "error_count": 0, "skipped": True}
+        _write_jsonl(out_dir / "version_bump_log.jsonl", [])
+        _write_json(out_dir / "version_bump_summary.json", summary)
+        return summary
+
+    updated_rows: list[dict[str, Any]] = []
+    logs: list[dict[str, Any]] = []
+    changed_count = 0
+    bumped_count = 0
+    error_count = 0
+
+    for row in rows:
+        item = dict(row)
+        changed = bool(item.get("changed"))
+        flow_uuid = _coerce_text(item.get("flow_uuid"))
+        patched_file = Path(_coerce_text(item.get("patched_file")))
+        base_version = _coerce_text(item.get("base_version"))
+        if not changed and not include_unchanged:
+            logs.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "base_version": base_version,
+                    "status": "skipped_unchanged",
+                    "bumped": False,
+                }
+            )
+            updated_rows.append(item)
+            continue
+        changed_count += 1
+        if not patched_file.exists():
+            logs.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "base_version": base_version,
+                    "patched_file": str(patched_file),
+                    "status": "error",
+                    "reason": "patched_file_missing",
+                    "bumped": False,
+                }
+            )
+            error_count += 1
+            updated_rows.append(item)
+            continue
+
+        wrapper = _flow_wrapper(_read_json(patched_file))
+        flow_ds = wrapper["flowDataSet"]
+        before_version = _flow_version(flow_ds)
+        expected_version = _bump_ilcd_version(base_version or before_version or "01.01.000")
+        bumped = before_version != expected_version
+        if bumped:
+            _set_flow_version(flow_ds, expected_version)
+            _write_json(patched_file, wrapper)
+            bumped_count += 1
+        after_version = _flow_version(flow_ds)
+
+        item["patched_version_before_publish"] = after_version
+        item["version_bumped"] = bumped
+        logs.append(
+            {
+                "flow_uuid": flow_uuid,
+                "base_version": base_version,
+                "before_version": before_version,
+                "expected_version": expected_version,
+                "after_version": after_version,
+                "patched_file": str(patched_file),
+                "status": "ok",
+                "bumped": bumped,
+            }
+        )
+        updated_rows.append(item)
+
+    _write_jsonl(manifest_path, updated_rows)
+    _write_jsonl(out_dir / "version_bump_log.jsonl", logs)
+    summary = {
+        "row_count": len(rows),
+        "changed_count": changed_count,
+        "bumped_count": bumped_count,
+        "error_count": error_count,
+    }
+    _write_json(out_dir / "version_bump_summary.json", summary)
+    return summary
+
+
+def _validate_schema_outputs(
+    manifest_path: Path,
+    out_dir: Path,
+    *,
+    include_unchanged: bool = True,
+) -> dict[str, Any]:
+    rows = _load_jsonl(manifest_path)
+    if not rows:
+        summary = {"row_count": 0, "validated_count": 0, "schema_valid_count": 0, "schema_invalid_count": 0, "skipped": True}
+        _write_jsonl(out_dir / "schema_validation.jsonl", [])
+        _write_json(out_dir / "schema_validation_summary.json", summary)
+        return summary
+
+    schema_valid_dir = out_dir / "schema_valid_flows"
+    schema_valid_dir.mkdir(parents=True, exist_ok=True)
+
+    updated_rows: list[dict[str, Any]] = []
+    reports: list[dict[str, Any]] = []
+    validated_count = 0
+    valid_count = 0
+    invalid_count = 0
+
+    for row in rows:
+        item = dict(row)
+        changed = bool(item.get("changed"))
+        flow_uuid = _coerce_text(item.get("flow_uuid"))
+        patched_file = Path(_coerce_text(item.get("patched_file")))
+
+        if not changed and not include_unchanged:
+            item["schema_valid"] = False
+            item["schema_error"] = "skipped_unchanged"
+            reports.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "patched_file": str(patched_file),
+                    "status": "skipped_unchanged",
+                    "schema_valid": False,
+                }
+            )
+            updated_rows.append(item)
+            continue
+
+        if not patched_file.exists():
+            item["schema_valid"] = False
+            item["schema_error"] = f"patched_file_missing:{patched_file}"
+            reports.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "patched_file": str(patched_file),
+                    "status": "error",
+                    "schema_valid": False,
+                    "schema_error": item["schema_error"],
+                }
+            )
+            invalid_count += 1
+            updated_rows.append(item)
+            continue
+
+        validated_count += 1
+        wrapper = _flow_wrapper(_read_json(patched_file))
+        schema_valid, schema_error = _validate_ilcd_flow_schema(wrapper)
+        item["schema_valid"] = schema_valid
+        item["schema_error"] = schema_error
+        if schema_valid:
+            valid_count += 1
+            _write_json(schema_valid_dir / patched_file.name, wrapper)
+            reports.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "patched_file": str(patched_file),
+                    "status": "ok",
+                    "schema_valid": True,
+                }
+            )
+        else:
+            invalid_count += 1
+            reports.append(
+                {
+                    "flow_uuid": flow_uuid,
+                    "patched_file": str(patched_file),
+                    "status": "invalid",
+                    "schema_valid": False,
+                    "schema_error": schema_error,
+                }
+            )
+        updated_rows.append(item)
+
+    _write_jsonl(manifest_path, updated_rows)
+    _write_jsonl(out_dir / "schema_validation.jsonl", reports)
+    summary = {
+        "row_count": len(rows),
+        "validated_count": validated_count,
+        "schema_valid_count": valid_count,
+        "schema_invalid_count": invalid_count,
+        "schema_valid_flows_dir": str(schema_valid_dir),
+    }
+    _write_json(out_dir / "schema_validation_summary.json", summary)
+    return summary
+
+
+def _propose_fixes(
+    flows_dir: Path,
+    findings_path: Path,
+    out_dir: Path,
+    *,
+    copy_unchanged: bool = False,
+) -> dict[str, Any]:
+    # Backward-compatible alias of llm-remediate.
+    return _llm_remediate_findings(
+        flows_dir,
+        findings_path,
+        out_dir,
+        copy_unchanged=copy_unchanged,
+    )
 
 
 def _extract_record_version_from_select_record(record: Mapping[str, Any]) -> str:
@@ -1292,6 +2065,44 @@ def _extract_record_version_from_select_record(record: Mapping[str, Any]) -> str
     return ""
 
 
+def _base_semantic_hash_for_row(
+    row: Mapping[str, Any],
+    *,
+    source_hash_cache: dict[str, str],
+) -> str:
+    direct = _coerce_text(row.get("before_sha256_no_version"))
+    if direct:
+        return direct
+    source_file = _coerce_text(row.get("source_file"))
+    if not source_file:
+        return ""
+    if source_file in source_hash_cache:
+        return source_hash_cache[source_file]
+    path = Path(source_file)
+    if not path.exists():
+        source_hash_cache[source_file] = ""
+        return ""
+    try:
+        source_hash_cache[source_file] = _sha256_flow_without_version(_read_json(path))
+    except Exception:
+        source_hash_cache[source_file] = ""
+    return source_hash_cache[source_file]
+
+
+def _latest_semantically_matches_base(
+    latest_doc: Mapping[str, Any] | None,
+    row: Mapping[str, Any],
+    *,
+    source_hash_cache: dict[str, str],
+) -> bool:
+    if not isinstance(latest_doc, Mapping):
+        return False
+    base_hash = _base_semantic_hash_for_row(row, source_hash_cache=source_hash_cache)
+    if not base_hash:
+        return False
+    return _sha256_flow_without_version(latest_doc) == base_hash
+
+
 def _publish_patched_flows(
     manifest_path: Path,
     out_dir: Path,
@@ -1299,6 +2110,7 @@ def _publish_patched_flows(
     mode: str = "dry-run",
     require_latest_match: bool = True,
     only_changed: bool = True,
+    version_conflict_retries: int = 20,
 ) -> dict[str, Any]:
     manifest_rows = _load_jsonl(manifest_path)
     if not manifest_rows:
@@ -1306,8 +2118,14 @@ def _publish_patched_flows(
         summary = {
             "row_count": 0,
             "mode": mode,
+            "version_conflict_retries": max(0, int(version_conflict_retries)),
             "inserted_count": 0,
             "dry_run_count": 0,
+            "idempotent_skip_count": 0,
+            "schema_gate_skipped_count": 0,
+            "auto_retarget_count": 0,
+            "retry_insert_count": 0,
+            "retry_exhausted_count": 0,
             "conflict_count": 0,
             "error_count": 0,
             "skipped": True,
@@ -1319,13 +2137,31 @@ def _publish_patched_flows(
 
     mcp = McpCrudFacade.create()
     results: list[dict[str, Any]] = []
+    source_hash_cache: dict[str, str] = {}
     inserted = 0
     skipped = 0
+    idempotent_skip_count = 0
+    schema_gate_skipped = 0
+    auto_retarget_count = 0
+    retry_insert_count = 0
+    retry_exhausted_count = 0
     conflicts = 0
     errors = 0
     try:
         for row in manifest_rows:
             if only_changed and not bool(row.get("changed")):
+                continue
+            if row.get("schema_valid") is False:
+                results.append(
+                    {
+                        "flow_uuid": _coerce_text(row.get("flow_uuid")),
+                        "base_version": _coerce_text(row.get("base_version")),
+                        "mode": mode,
+                        "status": "skipped",
+                        "reason": "schema_invalid",
+                    }
+                )
+                schema_gate_skipped += 1
                 continue
             patched_file = Path(_coerce_text(row.get("patched_file")))
             if not patched_file.exists():
@@ -1343,36 +2179,77 @@ def _publish_patched_flows(
             flow_ds = wrapper["flowDataSet"]
             flow_uuid = _flow_uuid(flow_ds)
             base_version = _coerce_text(row.get("base_version"))
+            patched_version = _flow_version(flow_ds)
 
             latest_doc = mcp.select_flow(flow_uuid)
             latest_version = _flow_version(_flow_root(latest_doc)) if latest_doc else ""
+            retargeted = False
+            retarget_reason = ""
 
             if require_latest_match and base_version and latest_version and base_version != latest_version:
+                if _latest_semantically_matches_base(latest_doc, row, source_hash_cache=source_hash_cache):
+                    patched_version = _bump_ilcd_version(latest_version)
+                    _set_flow_version(flow_ds, patched_version)
+                    retargeted = True
+                    retarget_reason = "base_version_mismatch_semantically_equal_auto_retarget"
+                    auto_retarget_count += 1
+                else:
+                    results.append(
+                        {
+                            "flow_uuid": flow_uuid,
+                            "base_version": base_version,
+                            "latest_version": latest_version,
+                            "status": "conflict",
+                            "reason": "base_version_mismatch",
+                        }
+                    )
+                    conflicts += 1
+                    continue
+
+            expected_version = _bump_ilcd_version(latest_version or base_version or patched_version or "01.01.000")
+            if not patched_version:
                 results.append(
                     {
                         "flow_uuid": flow_uuid,
                         "base_version": base_version,
-                        "latest_version": latest_version,
-                        "status": "conflict",
-                        "reason": "base_version_mismatch",
+                        "latest_version_checked": latest_version,
+                        "mode": mode,
+                        "status": "error",
+                        "reason": "patched_version_missing",
                     }
                 )
-                conflicts += 1
+                errors += 1
+                continue
+            if expected_version and patched_version != expected_version:
+                results.append(
+                    {
+                        "flow_uuid": flow_uuid,
+                        "base_version": base_version,
+                        "latest_version_checked": latest_version,
+                        "patched_version": patched_version,
+                        "expected_version": expected_version,
+                        "mode": mode,
+                        "status": "error",
+                        "reason": "patched_version_not_latest_plus_one",
+                    }
+                )
+                errors += 1
                 continue
 
-            new_version = _bump_ilcd_version(latest_version or base_version or _flow_version(flow_ds))
-            _set_flow_version(flow_ds, new_version)
             after_hash = _sha256_json(wrapper)
 
             result_row = {
                 "flow_uuid": flow_uuid,
                 "base_version": base_version,
                 "latest_version_checked": latest_version,
-                "new_version": new_version,
+                "new_version": patched_version or expected_version,
                 "mode": mode,
                 "status": "dry-run",
                 "after_sha256": after_hash,
             }
+            if retargeted:
+                result_row["version_retargeted"] = True
+                result_row["retarget_reason"] = retarget_reason
 
             if mode == "insert":
                 try:
@@ -1381,9 +2258,81 @@ def _publish_patched_flows(
                     result_row["insert_result"] = insert_result
                     inserted += 1
                 except Exception as exc:  # noqa: BLE001
-                    result_row["status"] = "error"
-                    result_row["reason"] = str(exc)
-                    errors += 1
+                    err_text = str(exc)
+                    if _is_version_conflict_error(err_text):
+                        latest_after = mcp.select_flow(flow_uuid)
+                        latest_after_version = _flow_version(_flow_root(latest_after)) if latest_after else ""
+                        result_row["latest_version_after_conflict"] = latest_after_version
+                        if (
+                            isinstance(latest_after, Mapping)
+                            and _sha256_flow_without_version(latest_after) == _sha256_flow_without_version(wrapper)
+                        ):
+                            result_row["status"] = "skipped"
+                            result_row["reason"] = "already_published_equivalent"
+                            idempotent_skip_count += 1
+                        else:
+                            can_retry = False
+                            retry_basis = ""
+                            retry_seed = latest_after_version or patched_version
+                            if _latest_semantically_matches_base(latest_after, row, source_hash_cache=source_hash_cache):
+                                can_retry = True
+                                retry_basis = "base_semantic_match"
+                            elif latest_after is None:
+                                can_retry = True
+                                retry_basis = "latest_unreadable"
+                                retry_seed = patched_version
+                            else:
+                                base_hash = _base_semantic_hash_for_row(row, source_hash_cache=source_hash_cache)
+                                if not base_hash:
+                                    can_retry = True
+                                    retry_basis = "base_semantic_unknown"
+                            max_retries = max(0, int(version_conflict_retries))
+                            if can_retry and max_retries > 0:
+                                result_row["conflict_retry_basis"] = retry_basis
+                                retry_version = _bump_ilcd_version(retry_seed or patched_version or "01.01.000")
+                                retry_success = False
+                                for attempt in range(1, max_retries + 1):
+                                    _set_flow_version(flow_ds, retry_version)
+                                    result_row["retry_version"] = retry_version
+                                    try:
+                                        insert_result = mcp.insert_flow(wrapper)
+                                        result_row["status"] = "inserted"
+                                        result_row["insert_result"] = insert_result
+                                        result_row["retried_after_conflict"] = True
+                                        result_row["retry_attempts"] = attempt
+                                        result_row["new_version"] = retry_version
+                                        retry_insert_count += 1
+                                        inserted += 1
+                                        retry_success = True
+                                        break
+                                    except Exception as exc_retry:  # noqa: BLE001
+                                        retry_error = str(exc_retry)
+                                        if _is_version_conflict_error(retry_error):
+                                            retry_version = _bump_ilcd_version(retry_version)
+                                            continue
+                                        result_row["status"] = "error"
+                                        result_row["reason"] = retry_error
+                                        errors += 1
+                                        retry_success = True
+                                        break
+                                if not retry_success:
+                                    result_row["status"] = "conflict"
+                                    result_row["reason"] = "version_conflict_retry_exhausted"
+                                    result_row["retry_attempts"] = max_retries
+                                    retry_exhausted_count += 1
+                                    conflicts += 1
+                            elif can_retry and max_retries <= 0:
+                                result_row["status"] = "conflict"
+                                result_row["reason"] = "version_conflict_retry_disabled"
+                                conflicts += 1
+                            else:
+                                result_row["status"] = "conflict"
+                                result_row["reason"] = "insert_version_conflict_with_base_drift"
+                                conflicts += 1
+                    else:
+                        result_row["status"] = "error"
+                        result_row["reason"] = err_text
+                        errors += 1
             else:
                 skipped += 1
 
@@ -1394,8 +2343,14 @@ def _publish_patched_flows(
         summary = {
             "row_count": len(results),
             "mode": mode,
+            "version_conflict_retries": max(0, int(version_conflict_retries)),
             "inserted_count": inserted,
             "dry_run_count": skipped,
+            "idempotent_skip_count": idempotent_skip_count,
+            "schema_gate_skipped_count": schema_gate_skipped,
+            "auto_retarget_count": auto_retarget_count,
+            "retry_insert_count": retry_insert_count,
+            "retry_exhausted_count": retry_exhausted_count,
             "conflict_count": conflicts,
             "error_count": errors,
         }
@@ -1568,16 +2523,33 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         with_mcp_context=bool(args.with_mcp_review_context),
         similarity_threshold=args.similarity_threshold,
     )
-    fix_summary = _propose_fixes(
+    llm_remediate_summary = _llm_remediate_findings(
         run_dir / "cache" / "flows",
         run_dir / "review" / "findings.jsonl",
         run_dir / "fix",
-        copy_unchanged=bool(args.copy_unchanged),
+        copy_unchanged=bool(args.copy_unchanged or args.publish_include_unchanged),
+        llm_model=getattr(args, "remediate_llm_model", None),
+        llm_base_url=getattr(args, "remediate_llm_base_url", None),
+        llm_api_key=getattr(args, "remediate_llm_api_key", None),
+        llm_timeout_sec=getattr(args, "remediate_llm_timeout_sec", 120),
     )
-    patched_files = _iter_flow_files(run_dir / "fix" / "patched_flows")
+    bump_summary = _bump_versions_if_needed(
+        run_dir / "fix" / "patch_manifest.jsonl",
+        run_dir / "fix",
+        include_unchanged=bool(args.copy_unchanged or args.publish_include_unchanged),
+    )
+    validate_schema_summary = _validate_schema_outputs(
+        run_dir / "fix" / "patch_manifest.jsonl",
+        run_dir / "fix",
+        include_unchanged=bool(args.copy_unchanged or args.publish_include_unchanged),
+    )
+    schema_valid_flows_dir = Path(
+        _coerce_text(validate_schema_summary.get("schema_valid_flows_dir")) or (run_dir / "fix" / "schema_valid_flows")
+    )
+    patched_files = _iter_flow_files(schema_valid_flows_dir)
     if patched_files:
         validate_summary = _run_lci_review_flow(
-            flows_dir=run_dir / "fix" / "patched_flows",
+            flows_dir=schema_valid_flows_dir,
             out_dir=run_dir / "validate",
             run_root=run_dir,
             run_id=(f"{getattr(args, 'review_run_id')}-validate" if getattr(args, "review_run_id", None) else None),
@@ -1599,7 +2571,7 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             "similarity_pair_count": 0,
             "with_mcp_context": bool(args.with_mcp_review_context),
             "skipped": True,
-            "reason": "no_patched_flows",
+            "reason": f"no_schema_valid_flows:{schema_valid_flows_dir}",
         }
         _write_json(run_dir / "validate" / "flow_review_summary.json", validate_summary)
 
@@ -1611,13 +2583,16 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             mode=args.publish_mode,
             require_latest_match=not args.skip_base_check,
             only_changed=not args.publish_include_unchanged,
+            version_conflict_retries=args.publish_version_conflict_retries,
         )
 
     pipeline_summary = {
         "run_dir": str(run_dir),
         "fetch": fetch_summary,
         "review": review_summary,
-        "fix": fix_summary,
+        "llm_remediate": llm_remediate_summary,
+        "bump_version_if_needed": bump_summary,
+        "validate_schema": validate_schema_summary,
         "validate": validate_summary,
         "publish": publish_summary,
     }
@@ -1672,15 +2647,53 @@ def build_parser() -> argparse.ArgumentParser:
     p_review.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lci-review flow profile.")
     p_review.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lci-review flow profile.")
 
-    p_fix = sub.add_parser("propose-fix", help="Apply deterministic safe fixes and emit fix proposals.")
-    p_fix.add_argument("--run-dir", help="Run directory. Defaults inputs/outputs under it.")
-    p_fix.add_argument("--flows-dir", help="Directory of flow JSON files. Defaults to <run-dir>/cache/flows.")
-    p_fix.add_argument("--findings", help="Path to findings.jsonl. Defaults to <run-dir>/review/findings.jsonl.")
-    p_fix.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/fix.")
-    p_fix.add_argument("--copy-unchanged", action="store_true", help="Copy unchanged flows into patched_flows for later publish inspection.")
+    def _add_remediate_args(parser_obj: argparse.ArgumentParser) -> None:
+        parser_obj.add_argument("--run-dir", help="Run directory. Defaults inputs/outputs under it.")
+        parser_obj.add_argument("--flows-dir", help="Directory of flow JSON files. Defaults to <run-dir>/cache/flows.")
+        parser_obj.add_argument("--findings", help="Path to findings.jsonl. Defaults to <run-dir>/review/findings.jsonl.")
+        parser_obj.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/fix.")
+        parser_obj.add_argument(
+            "--copy-unchanged",
+            action="store_true",
+            help="Copy unchanged flows into patched_flows so they can optionally pass later stages.",
+        )
+        parser_obj.add_argument("--remediate-llm-model", help="LLM model for remediation stage.")
+        parser_obj.add_argument("--remediate-llm-base-url", help="OpenAI-compatible base URL for remediation stage.")
+        parser_obj.add_argument("--remediate-llm-api-key", help="Explicit API key for remediation stage.")
+        parser_obj.add_argument("--remediate-llm-timeout-sec", type=int, default=120, help="LLM timeout per issue.")
 
-    p_validate = sub.add_parser("validate", help="Re-run lci-review --profile flow on patched flows.")
-    p_validate.add_argument("--run-dir", help="Run directory. Defaults patched flows under <run-dir>/fix/patched_flows.")
+    p_llm_fix = sub.add_parser(
+        "llm-remediate",
+        help="Per-finding LLM remediation with structured output and patch manifest generation.",
+    )
+    _add_remediate_args(p_llm_fix)
+
+    p_fix = sub.add_parser("propose-fix", help="Deprecated alias of llm-remediate.")
+    _add_remediate_args(p_fix)
+
+    p_bump = sub.add_parser(
+        "bump-version-if-needed",
+        help="Ensure patched flow versions equal base_version+1 (no version jumps).",
+    )
+    p_bump.add_argument("--run-dir", help="Run directory. Defaults manifest/out under <run-dir>/fix.")
+    p_bump.add_argument("--manifest", help="Patch manifest JSONL. Defaults to <run-dir>/fix/patch_manifest.jsonl.")
+    p_bump.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/fix.")
+    p_bump.add_argument("--include-unchanged", action="store_true", help="Also process unchanged copied flows.")
+
+    p_schema = sub.add_parser(
+        "validate-schema",
+        help="Validate patched flows against ILCD FlowDataSet schema and update manifest schema flags.",
+    )
+    p_schema.add_argument("--run-dir", help="Run directory. Defaults manifest/out under <run-dir>/fix.")
+    p_schema.add_argument("--manifest", help="Patch manifest JSONL. Defaults to <run-dir>/fix/patch_manifest.jsonl.")
+    p_schema.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/fix.")
+    p_schema.add_argument("--include-unchanged", action="store_true", help="Validate unchanged copied flows too.")
+
+    p_validate = sub.add_parser("validate", help="Re-run lci-review --profile flow on schema-valid patched flows.")
+    p_validate.add_argument(
+        "--run-dir",
+        help="Run directory. Defaults to <run-dir>/fix/schema_valid_flows when present, otherwise <run-dir>/fix/patched_flows.",
+    )
     p_validate.add_argument("--flows-dir", help="Directory of patched flow JSON files.")
     p_validate.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/validate.")
     p_validate.add_argument(
@@ -1718,8 +2731,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_publish.add_argument("--mode", choices=["dry-run", "insert"], default="dry-run")
     p_publish.add_argument("--skip-base-check", action="store_true", help="Do not require latest DB version to match base_version.")
     p_publish.add_argument("--include-unchanged", action="store_true", help="Also publish unchanged copied flows (normally skipped).")
+    p_publish.add_argument(
+        "--version-conflict-retries",
+        type=int,
+        default=20,
+        help="When insert reports version conflict, retry with +1 versions up to this many times (for blind/private version gaps).",
+    )
 
-    p_pipeline = sub.add_parser("pipeline", help="Run fetch -> review -> propose-fix -> validate -> optional publish.")
+    p_pipeline = sub.add_parser(
+        "pipeline",
+        help="Run fetch -> review -> llm-remediate -> bump-version-if-needed -> validate-schema -> validate -> optional publish.",
+    )
     p_pipeline.add_argument("--uuid-list", required=True)
     p_pipeline.add_argument("--run-dir", required=True)
     p_pipeline.add_argument("--limit", type=int)
@@ -1750,10 +2772,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_pipeline.add_argument("--review-llm-model", help="LLM model passed to lci-review flow profile.")
     p_pipeline.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lci-review flow profile.")
     p_pipeline.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lci-review flow profile.")
+    p_pipeline.add_argument("--remediate-llm-model", help="LLM model for remediation stage.")
+    p_pipeline.add_argument("--remediate-llm-base-url", help="OpenAI-compatible base URL for remediation stage.")
+    p_pipeline.add_argument("--remediate-llm-api-key", help="Explicit API key for remediation stage.")
+    p_pipeline.add_argument("--remediate-llm-timeout-sec", type=int, default=120, help="LLM timeout per issue.")
     p_pipeline.add_argument("--copy-unchanged", action="store_true")
     p_pipeline.add_argument("--publish-mode", choices=["none", "dry-run", "insert"], default="none")
     p_pipeline.add_argument("--skip-base-check", action="store_true")
     p_pipeline.add_argument("--publish-include-unchanged", action="store_true")
+    p_pipeline.add_argument(
+        "--publish-version-conflict-retries",
+        type=int,
+        default=20,
+        help="Publish-stage +1 retry attempts after version-conflict insert errors.",
+    )
 
     p_regen = sub.add_parser(
         "regen-product-flow",
@@ -1816,27 +2848,72 @@ def main() -> int:
             _print_json(summary)
             return 0
 
-        if args.command == "propose-fix":
+        if args.command in {"llm-remediate", "propose-fix"}:
             run_dir = Path(args.run_dir).resolve() if args.run_dir else None
             if args.flows_dir:
                 flows_dir = Path(args.flows_dir).resolve()
             else:
                 if run_dir is None:
-                    parser.error("propose-fix requires --run-dir or --flows-dir")
+                    parser.error(f"{args.command} requires --run-dir or --flows-dir")
                 flows_dir = run_dir / "cache" / "flows"
             if args.findings:
                 findings_path = Path(args.findings).resolve()
             else:
                 if run_dir is None:
-                    parser.error("propose-fix requires --run-dir or --findings")
+                    parser.error(f"{args.command} requires --run-dir or --findings")
                 findings_path = run_dir / "review" / "findings.jsonl"
             if args.out_dir:
                 out_dir = Path(args.out_dir).resolve()
             else:
                 if run_dir is None:
-                    parser.error("propose-fix requires --run-dir or --out-dir")
+                    parser.error(f"{args.command} requires --run-dir or --out-dir")
                 out_dir = run_dir / "fix"
-            summary = _propose_fixes(flows_dir, findings_path, out_dir, copy_unchanged=bool(args.copy_unchanged))
+            summary = _llm_remediate_findings(
+                flows_dir,
+                findings_path,
+                out_dir,
+                copy_unchanged=bool(args.copy_unchanged),
+                llm_model=getattr(args, "remediate_llm_model", None),
+                llm_base_url=getattr(args, "remediate_llm_base_url", None),
+                llm_api_key=getattr(args, "remediate_llm_api_key", None),
+                llm_timeout_sec=getattr(args, "remediate_llm_timeout_sec", 120),
+            )
+            _print_json(summary)
+            return 0
+
+        if args.command == "bump-version-if-needed":
+            run_dir = Path(args.run_dir).resolve() if args.run_dir else None
+            manifest_path = (
+                Path(args.manifest).resolve()
+                if args.manifest
+                else (run_dir / "fix" / "patch_manifest.jsonl" if run_dir else None)
+            )
+            out_dir = Path(args.out_dir).resolve() if args.out_dir else (run_dir / "fix" if run_dir else None)
+            if manifest_path is None or out_dir is None:
+                parser.error("bump-version-if-needed requires --run-dir or both --manifest and --out-dir")
+            summary = _bump_versions_if_needed(
+                manifest_path,
+                out_dir,
+                include_unchanged=bool(args.include_unchanged),
+            )
+            _print_json(summary)
+            return 0
+
+        if args.command == "validate-schema":
+            run_dir = Path(args.run_dir).resolve() if args.run_dir else None
+            manifest_path = (
+                Path(args.manifest).resolve()
+                if args.manifest
+                else (run_dir / "fix" / "patch_manifest.jsonl" if run_dir else None)
+            )
+            out_dir = Path(args.out_dir).resolve() if args.out_dir else (run_dir / "fix" if run_dir else None)
+            if manifest_path is None or out_dir is None:
+                parser.error("validate-schema requires --run-dir or both --manifest and --out-dir")
+            summary = _validate_schema_outputs(
+                manifest_path,
+                out_dir,
+                include_unchanged=bool(args.include_unchanged),
+            )
             _print_json(summary)
             return 0
 
@@ -1851,7 +2928,8 @@ def main() -> int:
                 run_root = Path(args.run_dir).resolve() if args.run_dir else None
             else:
                 run_dir = _require_run_dir(args.run_dir, parser, "validate")
-                flows_dir = run_dir / "fix" / "patched_flows"
+                schema_dir = run_dir / "fix" / "schema_valid_flows"
+                flows_dir = schema_dir if schema_dir.exists() else (run_dir / "fix" / "patched_flows")
                 out_dir = Path(args.out_dir).resolve() if args.out_dir else (run_dir / "validate")
                 run_root = run_dir
             if not _iter_flow_files(flows_dir):
@@ -1900,6 +2978,7 @@ def main() -> int:
                 mode=args.mode,
                 require_latest_match=not args.skip_base_check,
                 only_changed=not args.include_unchanged,
+                version_conflict_retries=args.version_conflict_retries,
             )
             _print_json(summary)
             return 0
