@@ -777,6 +777,15 @@ def _language_entry(text: str, lang: str = "en") -> dict[str, Any]:
     return {"@xml:lang": lang, "#text": text}
 
 
+def _bilingual_language_entries(text_en: str, text_zh: str | None = None) -> list[dict[str, Any]]:
+    en_text = _normalize_text(text_en) or "Unnamed flow"
+    zh_text = _normalize_text(text_zh) or en_text
+    return [
+        _language_entry(en_text, "en"),
+        _language_entry(zh_text, "zh"),
+    ]
+
+
 @dataclass(slots=True, frozen=True)
 class FlowPropertyOverride:
     """Override entry used to customise flow property selection."""
@@ -2341,12 +2350,17 @@ class FlowPublisher:
             publication["common:permanentDataSetURI"] = build_portal_uri("flow", uuid_value, version)
 
         uri = build_portal_uri("flow", uuid_value, version)
+        short_desc_zh = (
+            self._extract_language_text(name_block.get("baseName"), "zh")
+            or _normalize_text(text_fields.get("base_name_zh"))
+            or _normalize_text(zh_name)
+        )
         exchange_ref = {
             "@type": "flow data set",
             "@uri": uri,
             "@refObjectId": uuid_value,
             "@version": version,
-            "common:shortDescription": _language_entry(exchange_name),
+            "common:shortDescription": _bilingual_language_entries(exchange_name, short_desc_zh),
         }
         return dataset, exchange_ref
 

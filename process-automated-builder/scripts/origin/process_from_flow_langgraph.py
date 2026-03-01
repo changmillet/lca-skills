@@ -491,6 +491,53 @@ def _flow_publish_plan_cache_path(cache_dir: Path) -> Path:
     return cache_dir / "flow_publish_plans.json"
 
 
+def _extract_flow_name_entries(dataset: Mapping[str, Any] | None) -> Any:
+    if not isinstance(dataset, Mapping):
+        return None
+    flow_root = dataset.get("flowDataSet")
+    if not isinstance(flow_root, Mapping):
+        flow_root = dataset
+    flow_info = flow_root.get("flowInformation")
+    if not isinstance(flow_info, Mapping):
+        return None
+    data_info = flow_info.get("dataSetInformation")
+    if not isinstance(data_info, Mapping):
+        return None
+    name_block = data_info.get("name")
+    if not isinstance(name_block, Mapping):
+        return None
+    return name_block.get("baseName")
+
+
+def _ensure_bilingual_short_description(
+    ref: Mapping[str, Any],
+    *,
+    dataset: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized = dict(ref)
+    desc_node = normalized.get("common:shortDescription")
+    en_text = _extract_lang_text_with_preference(desc_node, "en")
+    zh_text = _extract_lang_text_with_preference(desc_node, "zh")
+
+    name_entries = _extract_flow_name_entries(dataset)
+    if not en_text:
+        en_text = _extract_lang_text_with_preference(name_entries, "en")
+    if not zh_text:
+        zh_text = _extract_lang_text_with_preference(name_entries, "zh")
+
+    if not en_text:
+        ref_uuid = normalized.get("@refObjectId")
+        en_text = ref_uuid.strip() if isinstance(ref_uuid, str) and ref_uuid.strip() else "Unnamed flow"
+    if not zh_text:
+        zh_text = en_text
+
+    normalized["common:shortDescription"] = [
+        {"@xml:lang": "en", "#text": en_text},
+        {"@xml:lang": "zh", "#text": zh_text},
+    ]
+    return normalized
+
+
 def _serialize_flow_publish_plans(
     plans: list[Any],
     *,
@@ -520,7 +567,7 @@ def _serialize_flow_publish_plans(
                 "exchange_name": exchange_name,
                 "process_name": process_name,
                 "dataset": dict(dataset),
-                "exchange_ref": dict(exchange_ref),
+                "exchange_ref": _ensure_bilingual_short_description(exchange_ref, dataset=dataset),
                 "mode": mode if isinstance(mode, str) and mode else "insert",
                 "flow_property_uuid": flow_property_uuid if isinstance(flow_property_uuid, str) and flow_property_uuid else None,
             }
@@ -586,7 +633,7 @@ def _load_flow_publish_plan_cache(cache_dir: Path) -> tuple[list[Any], dict[str,
                 exchange_name=(exchange_name if isinstance(exchange_name, str) else "Unnamed exchange"),
                 process_name=(process_name if isinstance(process_name, str) else "Unknown process"),
                 dataset=dict(dataset),
-                exchange_ref=dict(exchange_ref),
+                exchange_ref=_ensure_bilingual_short_description(exchange_ref, dataset=dataset),
                 mode=(mode if isinstance(mode, str) and mode else "insert"),
                 flow_property_uuid=(flow_property_uuid if isinstance(flow_property_uuid, str) and flow_property_uuid else None),
             )
@@ -944,26 +991,41 @@ def _enforce_balance_quality_gate(run_id: str, *, strict: bool = False) -> None:
     print(f"Balance quality gate passed for run {run_id}.", file=sys.stderr)
 
 
-def _extract_lang_text(value: Any) -> str:
+def _extract_lang_text_with_preference(value: Any, preferred_lang: str = "en") -> str:
+    preferred = (preferred_lang or "").strip().lower()
     if value is None:
         return ""
     if isinstance(value, str):
         return value.strip()
     if isinstance(value, Mapping):
+        item_lang = str(value.get("@xml:lang") or "").strip().lower()
         text = value.get("#text")
         if isinstance(text, str):
-            return text.strip()
+            normalized = text.strip()
+            if not normalized:
+                return ""
+            if preferred and item_lang and item_lang != preferred:
+                return ""
+            return normalized
     if isinstance(value, list):
+        if preferred:
+            for item in value:
+                if isinstance(item, Mapping) and str(item.get("@xml:lang") or "").strip().lower() == preferred:
+                    text = item.get("#text")
+                    if isinstance(text, str) and text.strip():
+                        return text.strip()
         for item in value:
-            if isinstance(item, Mapping) and item.get("@xml:lang") == "en":
-                text = item.get("#text")
-                if isinstance(text, str) and text.strip():
-                    return text.strip()
-        for item in value:
-            text = _extract_lang_text(item)
+            text = _extract_lang_text_with_preference(item, "")
             if text:
                 return text
     return ""
+
+
+def _extract_lang_text(value: Any) -> str:
+    text = _extract_lang_text_with_preference(value, "en")
+    if text:
+        return text
+    return _extract_lang_text_with_preference(value, "")
 
 
 def _compose_process_name(process_payload: Mapping[str, Any]) -> str:
@@ -1232,9 +1294,10 @@ def _build_flow_ref_mapping_from_plans(plans: list[Any]) -> dict[str, dict[str, 
     mapping: dict[str, dict[str, Any]] = {}
     for plan in plans:
         uuid_value = getattr(plan, "uuid", None)
+        dataset = getattr(plan, "dataset", None)
         exchange_ref = getattr(plan, "exchange_ref", None)
         if isinstance(uuid_value, str) and uuid_value.strip() and isinstance(exchange_ref, Mapping):
-            mapping[uuid_value.strip()] = dict(exchange_ref)
+            mapping[uuid_value.strip()] = _ensure_bilingual_short_description(exchange_ref, dataset=dataset)
     return mapping
 
 
@@ -1246,7 +1309,7 @@ def _build_flow_ref_mapping_from_publish_results(rows: list[dict[str, Any]]) -> 
         flow_uuid = row.get("flow_uuid")
         target_ref = row.get("target_ref")
         if isinstance(flow_uuid, str) and flow_uuid.strip() and isinstance(target_ref, Mapping):
-            mapping[flow_uuid.strip()] = dict(target_ref)
+            mapping[flow_uuid.strip()] = _ensure_bilingual_short_description(target_ref)
     return mapping
 
 
