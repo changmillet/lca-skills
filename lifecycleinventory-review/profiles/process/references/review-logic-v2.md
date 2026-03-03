@@ -41,10 +41,6 @@
 - flow_unit_issue_log.md
 - review_summary_v2_1.json
 
-兼容输出：
-- one_flow_rerun_review_v2_zh.md
-- one_flow_rerun_review_v2_en.md
-
 每个 review 文件都应包含：
 - 证据充足结论
 - 证据不足结论/限制

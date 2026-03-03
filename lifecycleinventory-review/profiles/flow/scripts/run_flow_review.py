@@ -857,10 +857,7 @@ def _run_llm_review(
         if res.get("ok"):
             result = res.get("result") or {}
             if isinstance(result, dict):
-                # Prefer the compact findings schema; fall back to legacy key for compatibility.
                 raw_findings = result.get("findings")
-                if not isinstance(raw_findings, list):
-                    raw_findings = result.get("flow_findings")
                 if isinstance(raw_findings, list):
                     fallback_flow_uuid = _coerce_text(batch[0].get("flow_uuid")) if len(batch) == 1 else ""
                     for item in raw_findings:
@@ -942,9 +939,9 @@ def main() -> None:
     ap.add_argument("--llm-max-flows", type=int, default=120)
     ap.add_argument("--llm-batch-size", type=int, default=20)
     ap.add_argument(
-        "--with-mcp-context",
+        "--with-reference-context",
         action="store_true",
-        help="Enable local flow property/unitgroup reference context using process-automated-builder registry (compat flag name).",
+        help="Enable local flow property/unitgroup reference context using process-automated-builder registry.",
     )
     ap.add_argument("--similarity-threshold", type=float, default=0.92)
     ap.add_argument(
@@ -990,7 +987,7 @@ def main() -> None:
 
     registry_ctx: Optional[_FlowPropertyRegistryFacade] = None
     fp_registry_cache: Dict[str, Optional[Dict[str, Any]]] = {}
-    if args.with_mcp_context:
+    if args.with_reference_context:
         registry_ctx = _FlowPropertyRegistryFacade()
         registry_ctx.open()
 
@@ -1061,8 +1058,8 @@ def main() -> None:
             "run_id": run_id,
             "logic_version": args.logic_version,
             "flow_count": len(flow_summaries),
-            "with_mcp_context": bool(args.with_mcp_context),
-            "reference_context_mode": "process_automated_builder_registry" if args.with_mcp_context else "disabled",
+            "with_reference_context": bool(args.with_reference_context),
+            "reference_context_mode": "process_automated_builder_registry" if args.with_reference_context else "disabled",
             "similarity_threshold": args.similarity_threshold,
             "methodology_rule_source": methodology_rule_source or "disabled",
             "rule_finding_count": len(rule_findings),
@@ -1085,7 +1082,7 @@ def main() -> None:
             f"- logic_version: `{args.logic_version}`\n",
             f"- flows_dir: `{flows_dir}`\n",
             f"- flow count: `{len(flow_summaries)}`\n",
-            f"- with_reference_context (compat flag `--with-mcp-context`): `{bool(args.with_mcp_context)}`\n",
+            f"- with_reference_context (`--with-reference-context`): `{bool(args.with_reference_context)}`\n",
             f"- methodology_rule_source: `{methodology_rule_source or 'disabled'}`\n",
             "\n## 基础统计\n",
             f"- rule-based findings: **{len(rule_findings)}**\n",
@@ -1131,7 +1128,7 @@ def main() -> None:
         zh += [
             "\n## 规则抽取层限制（非最终语义判断）\n",
             "- 本脚本的 rule-based 部分主要负责抽取结构化证据和局部一致性信号，最终语义判断应以 LLM 复审层为主。\n",
-            "- 若未启用 `--with-mcp-context`（该标志当前启用的是 process-automated-builder 本地 registry 上下文），flow property / unitgroup 合理性判断证据会明显不足。\n",
+            "- 若未启用 `--with-reference-context`（该标志当前启用的是 process-automated-builder 本地 registry 上下文），flow property / unitgroup 合理性判断证据会明显不足。\n",
         ]
 
         en = [
@@ -1140,7 +1137,7 @@ def main() -> None:
             f"- logic_version: `{args.logic_version}`\n",
             f"- flows_dir: `{flows_dir}`\n",
             f"- flow count: `{len(flow_summaries)}`\n",
-            f"- with_reference_context (compat flag `--with-mcp-context`): `{bool(args.with_mcp_context)}`\n",
+            f"- with_reference_context (`--with-reference-context`): `{bool(args.with_reference_context)}`\n",
             f"- methodology_rule_source: `{methodology_rule_source or 'disabled'}`\n",
             "\n## Summary\n",
             f"- rule-based findings: **{len(rule_findings)}**\n",
@@ -1170,13 +1167,10 @@ def main() -> None:
         timing.append(f"- flow files reviewed: `{len(flow_summaries)}`\n")
         timing.append("- major time consumers: flow JSON parsing, similarity grouping, optional local registry lookups, LLM review batches.\n")
 
-        # write files + process-style compatibility aliases for easier integration
+        # write files
         (out / "flow_review_zh.md").write_text("".join(zh), encoding="utf-8")
         (out / "flow_review_en.md").write_text("".join(en), encoding="utf-8")
         (out / "flow_review_timing.md").write_text("".join(timing), encoding="utf-8")
-        (out / "one_flow_rerun_review_flow_zh.md").write_text("".join(zh), encoding="utf-8")
-        (out / "one_flow_rerun_review_flow_en.md").write_text("".join(en), encoding="utf-8")
-        (out / "one_flow_rerun_timing_flow.md").write_text("".join(timing), encoding="utf-8")
     finally:
         if registry_ctx is not None:
             registry_ctx.close()

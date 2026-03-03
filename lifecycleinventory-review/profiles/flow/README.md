@@ -44,7 +44,7 @@ When `--flows-dir` is omitted, the script tries:
 
 ## Notes
 
-- Enable `--with-mcp-context` to improve flow property/unitgroup rationality evidence (compat flag name; internally uses local `process-automated-builder` registry, not CRUD).
+- Enable `--with-reference-context` to improve flow property/unitgroup rationality evidence (internally uses local `process-automated-builder` registry, not CRUD).
 - LLM semantic review is enabled by default when `OPENAI_API_KEY` is set.
 - Use `--disable-llm` to force rule-only review.
 - Use `--enable-llm` to force LLM review in environments where the key may not be preloaded.

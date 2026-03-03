@@ -3,7 +3,7 @@
 ## Inputs
 
 - Curated UUID list file (JSON/JSONL/TXT), typically manually exported via SQL by an operator (for example `flow_list_100_selected.jsonl`, where `100` means `state_code=100`, not "top 100").
-- MCP CRUD access (read-only for `fetch`, append-only `insert` for publish). Review context enrichment is delegated to `lci-review` and uses local `process-automated-builder` registry when enabled.
+- MCP CRUD access (read-only for `fetch`, append-only `insert` for publish). Review context enrichment is delegated to `lifecycleinventory-review` and uses local `process-automated-builder` registry when enabled.
 - LLM runtime for remediation stage (`OPENAI_API_KEY` + model/base URL as needed).
 
 ## Run Directory Layout
@@ -39,13 +39,13 @@ Example: `artifacts/flow-remediator/run-001`
 
 ## `review`
 
-- Delegates to `lci-review --profile flow`.
+- Delegates to `lifecycleinventory-review --profile flow`.
 - Produces `review/findings.jsonl` consumed by remediation stage.
-- `lci-review` internally combines structured evidence extraction + optional LLM semantic review.
-- If `OPENAI_API_KEY` is present, `lci-review flow` defaults to LLM-enabled review unless explicitly disabled.
-- Use `--with-mcp-context` to improve flow property / unitgroup evidence (compat flag name; delegated `lci-review` uses local `process-automated-builder` registry, not CRUD, for this context).
+- `lifecycleinventory-review` internally combines structured evidence extraction + optional LLM semantic review.
+- If `OPENAI_API_KEY` is present, `lifecycleinventory-review flow` defaults to LLM-enabled review unless explicitly disabled.
+- Use `--with-reference-context` to improve flow property / unitgroup evidence (delegated `lifecycleinventory-review` uses local `process-automated-builder` registry, not CRUD, for this context).
 
-## `llm-remediate` (or alias `propose-fix`)
+## `llm-remediate`
 
 - Processes every finding independently with strict JSON I/O contract.
 - Input contract per finding includes:
@@ -76,7 +76,7 @@ Example: `artifacts/flow-remediator/run-001`
 
 ## `validate`
 
-- Re-runs `lci-review --profile flow` on schema-valid patched flows.
+- Re-runs `lifecycleinventory-review --profile flow` on schema-valid patched flows.
 - Used as regression signal before publish.
 
 ## `publish`

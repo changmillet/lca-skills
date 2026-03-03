@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Unified LCI review entrypoint")
-    parser.add_argument("--profile", choices=["process", "flow", "model"], default="process")
+    parser = argparse.ArgumentParser(description="Unified lifecycle inventory review entrypoint")
+    parser.add_argument("--profile", choices=["process", "flow", "lifecyclemodel"], default="process")
     parser.add_argument("--run-root")
     parser.add_argument("--run-id")
     parser.add_argument("--out-dir")
@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--llm-max-processes", type=int)
     parser.add_argument("--llm-max-flows", type=int)
     parser.add_argument("--llm-batch-size", type=int)
-    parser.add_argument("--with-mcp-context", action="store_true")
+    parser.add_argument("--with-reference-context", action="store_true")
     parser.add_argument("--similarity-threshold", type=float)
     args = parser.parse_args()
 
@@ -31,7 +31,7 @@ def main():
         if missing:
             parser.error("process profile requires: --run-root --run-id --out-dir")
 
-        target = Path(__file__).resolve().parents[1] / "profiles" / "process" / "scripts" / "run_lci_review.py"
+        target = Path(__file__).resolve().parents[1] / "profiles" / "process" / "scripts" / "run_process_review.py"
         cmd = [
             sys.executable,
             str(target),
@@ -90,8 +90,8 @@ def main():
             cmd += ["--llm-max-flows", str(args.llm_max_processes)]
         if args.llm_batch_size is not None:
             cmd += ["--llm-batch-size", str(args.llm_batch_size)]
-        if args.with_mcp_context:
-            cmd += ["--with-mcp-context"]
+        if args.with_reference_context:
+            cmd += ["--with-reference-context"]
         if args.similarity_threshold is not None:
             cmd += ["--similarity-threshold", str(args.similarity_threshold)]
         raise SystemExit(subprocess.call(cmd))

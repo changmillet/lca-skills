@@ -2,7 +2,7 @@
 
 ## `review/findings.jsonl`
 
-Produced by `lci-review --profile flow` and consumed by `flow-remediator-publisher llm-remediate`.
+Produced by `lifecycleinventory-review --profile flow` and consumed by `flow-remediator-publisher llm-remediate`.
 
 One JSON object per finding.
 
@@ -90,7 +90,6 @@ Key fields:
 - `source_file`
 - `patched_file`
 - `changed`
-- `modified` (alias of changed)
 - `schema_valid`
 - `schema_error`
 - `version_bumped` (optional)
@@ -125,7 +124,7 @@ Important fields:
 
 ## Alignment Target
 
-Keep this skill compatible with evolving `lci-review --profile flow` outputs by:
+Keep this skill compatible with evolving `lifecycleinventory-review --profile flow` outputs by:
 
 - mapping external review findings into the same `findings.jsonl` shape
 - preserving `patch_manifest.jsonl` publish contract

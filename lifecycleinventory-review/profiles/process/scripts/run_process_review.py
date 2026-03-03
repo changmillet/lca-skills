@@ -411,10 +411,6 @@ def main():
 
     (out / "one_flow_rerun_review_v2_1_zh.md").write_text("".join(zh), encoding="utf-8")
     (out / "one_flow_rerun_review_v2_1_en.md").write_text("".join(en), encoding="utf-8")
-    # 兼容旧文件名
-    (out / "one_flow_rerun_review_v2_zh.md").write_text("".join(zh), encoding="utf-8")
-    (out / "one_flow_rerun_review_v2_en.md").write_text("".join(en), encoding="utf-8")
-
     (out / "one_flow_rerun_timing.md").write_text("".join(timing), encoding="utf-8")
     (out / "flow_unit_issue_log.md").write_text("".join(unit_md), encoding="utf-8")
 

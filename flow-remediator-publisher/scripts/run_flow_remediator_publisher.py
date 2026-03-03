@@ -8,7 +8,7 @@ This script is intentionally split into subcommands so it can be used as:
 Design goals for the initial version:
 - No direct DB access; all remote access goes through MCP CRUD.
 - Reuse `process-automated-builder` services for CRUD and product flow regeneration.
-- Keep review/fix logic minimal but structured so it can later hand off to `lci-review --profile flow`.
+- Keep review/fix logic minimal but structured so it can later hand off to `lifecycleinventory-review --profile flow`.
 """
 
 from __future__ import annotations
@@ -500,12 +500,12 @@ def _process_builder_root() -> Path:
     return _repo_root_from_script() / "process-automated-builder"
 
 
-def _lci_review_root() -> Path:
-    return _repo_root_from_script() / "lci-review"
+def _lifecycleinventory_review_root() -> Path:
+    return _repo_root_from_script() / "lifecycleinventory-review"
 
 
-def _lci_review_entrypoint() -> Path:
-    return _lci_review_root() / "scripts" / "run_review.py"
+def _lifecycleinventory_review_entrypoint() -> Path:
+    return _lifecycleinventory_review_root() / "scripts" / "run_review.py"
 
 
 def _ensure_process_builder_on_syspath() -> None:
@@ -517,7 +517,7 @@ def _ensure_process_builder_on_syspath() -> None:
         sys.path.insert(0, pb_text)
 
 
-def _run_lci_review_flow(
+def _run_lifecycleinventory_review_flow(
     *,
     flows_dir: Path,
     out_dir: Path,
@@ -531,12 +531,12 @@ def _run_lci_review_flow(
     llm_model: str | None = None,
     llm_max_flows: int | None = None,
     llm_batch_size: int | None = None,
-    with_mcp_context: bool = False,
+    with_reference_context: bool = False,
     similarity_threshold: float | None = None,
 ) -> dict[str, Any]:
-    entry = _lci_review_entrypoint()
+    entry = _lifecycleinventory_review_entrypoint()
     if not entry.exists():
-        raise RuntimeError(f"lci-review entrypoint not found: {entry}")
+        raise RuntimeError(f"lifecycleinventory-review entrypoint not found: {entry}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -560,7 +560,7 @@ def _run_lci_review_flow(
     if logic_version:
         cmd += ["--logic-version", str(logic_version)]
     if enable_llm and disable_llm:
-        raise RuntimeError("Cannot set both enable_llm and disable_llm for lci-review flow call")
+        raise RuntimeError("Cannot set both enable_llm and disable_llm for lifecycleinventory-review flow call")
     if enable_llm:
         cmd += ["--enable-llm"]
     elif disable_llm:
@@ -571,8 +571,8 @@ def _run_lci_review_flow(
         cmd += ["--llm-max-flows", str(llm_max_flows)]
     if llm_batch_size is not None:
         cmd += ["--llm-batch-size", str(llm_batch_size)]
-    if with_mcp_context:
-        cmd += ["--with-mcp-context"]
+    if with_reference_context:
+        cmd += ["--with-reference-context"]
     if similarity_threshold is not None:
         cmd += ["--similarity-threshold", str(similarity_threshold)]
 
@@ -581,14 +581,14 @@ def _run_lci_review_flow(
         stdout = (proc.stdout or "").strip()
         stderr = (proc.stderr or "").strip()
         raise RuntimeError(
-            "lci-review flow profile failed"
+            "lifecycleinventory-review flow profile failed"
             + (f"; stdout={stdout[:1500]}" if stdout else "")
             + (f"; stderr={stderr[:1500]}" if stderr else "")
         )
 
     summary_path = out_dir / "flow_review_summary.json"
     if not summary_path.exists():
-        raise RuntimeError(f"lci-review did not produce expected summary file: {summary_path}")
+        raise RuntimeError(f"lifecycleinventory-review did not produce expected summary file: {summary_path}")
     summary = _read_json(summary_path)
     if not isinstance(summary, Mapping):
         raise RuntimeError(f"Unexpected flow review summary payload: {type(summary).__name__}")
@@ -1055,7 +1055,7 @@ def _review_directory(
     flows_dir: Path,
     out_dir: Path,
     *,
-    with_mcp_context: bool = False,
+    with_reference_context: bool = False,
     similarity_threshold: float = 0.92,
     max_pairs_per_group: int = 20000,
 ) -> dict[str, Any]:
@@ -1066,7 +1066,7 @@ def _review_directory(
     mcp: McpCrudFacade | None = None
     fp_cache: dict[tuple[str, str], dict[str, Any] | None] = {}
     ug_cache: dict[str, dict[str, Any] | None] = {}
-    if with_mcp_context:
+    if with_reference_context:
         mcp = McpCrudFacade.create()
 
     try:
@@ -1112,7 +1112,7 @@ def _review_directory(
             "flow_count": len(flow_files),
             "finding_count": len(all_findings),
             "similarity_pair_count": len(sim_pairs),
-            "with_mcp_context": with_mcp_context,
+            "with_reference_context": with_reference_context,
             "severity_counts": dict(sorted(severity_counts.items())),
             "fixability_counts": dict(sorted(fixability_counts.items())),
             "rule_counts": dict(sorted(rule_counts.items())),
@@ -1800,7 +1800,6 @@ def _llm_remediate_findings(
                 "source_file": str(flow_file),
                 "patched_file": str(out_path),
                 "changed": changed,
-                "modified": changed,
                 "schema_valid": final_schema_valid,
                 "schema_error": final_schema_error,
                 "before_sha256": _sha256_json(original_wrapper),
@@ -2033,22 +2032,6 @@ def _validate_schema_outputs(
     }
     _write_json(out_dir / "schema_validation_summary.json", summary)
     return summary
-
-
-def _propose_fixes(
-    flows_dir: Path,
-    findings_path: Path,
-    out_dir: Path,
-    *,
-    copy_unchanged: bool = False,
-) -> dict[str, Any]:
-    # Backward-compatible alias of llm-remediate.
-    return _llm_remediate_findings(
-        flows_dir,
-        findings_path,
-        out_dir,
-        copy_unchanged=copy_unchanged,
-    )
 
 
 def _extract_record_version_from_select_record(record: Mapping[str, Any]) -> str:
@@ -2507,7 +2490,7 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     fetch_summary = _fetch_flows(Path(args.uuid_list).resolve(), run_dir, limit=args.limit)
-    review_summary = _run_lci_review_flow(
+    review_summary = _run_lifecycleinventory_review_flow(
         flows_dir=run_dir / "cache" / "flows",
         out_dir=run_dir / "review",
         run_root=run_dir,
@@ -2520,7 +2503,7 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         llm_model=getattr(args, "review_llm_model", None),
         llm_max_flows=getattr(args, "review_llm_max_flows", None),
         llm_batch_size=getattr(args, "review_llm_batch_size", None),
-        with_mcp_context=bool(args.with_mcp_review_context),
+        with_reference_context=bool(args.with_reference_context),
         similarity_threshold=args.similarity_threshold,
     )
     llm_remediate_summary = _llm_remediate_findings(
@@ -2548,7 +2531,7 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     )
     patched_files = _iter_flow_files(schema_valid_flows_dir)
     if patched_files:
-        validate_summary = _run_lci_review_flow(
+        validate_summary = _run_lifecycleinventory_review_flow(
             flows_dir=schema_valid_flows_dir,
             out_dir=run_dir / "validate",
             run_root=run_dir,
@@ -2561,7 +2544,7 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             llm_model=getattr(args, "review_llm_model", None),
             llm_max_flows=getattr(args, "review_llm_max_flows", None),
             llm_batch_size=getattr(args, "review_llm_batch_size", None),
-            with_mcp_context=bool(args.with_mcp_review_context),
+            with_reference_context=bool(args.with_reference_context),
             similarity_threshold=args.similarity_threshold,
         )
     else:
@@ -2569,7 +2552,7 @@ def _run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             "flow_count": 0,
             "finding_count": 0,
             "similarity_pair_count": 0,
-            "with_mcp_context": bool(args.with_mcp_review_context),
+            "with_reference_context": bool(args.with_reference_context),
             "skipped": True,
             "reason": f"no_schema_valid_flows:{schema_valid_flows_dir}",
         }
@@ -2615,37 +2598,37 @@ def build_parser() -> argparse.ArgumentParser:
     p_fetch.add_argument("--run-dir", required=True, help="Run directory for cache and outputs.")
     p_fetch.add_argument("--limit", type=int, help="Optional limit for dry runs.")
 
-    p_review = sub.add_parser("review", help="Run flow review via lci-review --profile flow on local flow JSON cache.")
+    p_review = sub.add_parser("review", help="Run flow review via lifecycleinventory-review --profile flow on local flow JSON cache.")
     p_review.add_argument("--flows-dir", help="Directory of flow JSON files. Defaults to <run-dir>/cache/flows.")
     p_review.add_argument("--run-dir", help="Run directory. Used when --flows-dir omitted.")
     p_review.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/review.")
     p_review.add_argument(
-        "--with-mcp-context",
+        "--with-reference-context",
         action="store_true",
-        help="Enable flowproperty/unitgroup reference-context enrichment in lci-review (compat flag name; uses local process-automated-builder registry).",
+        help="Enable flowproperty/unitgroup reference-context enrichment in lifecycleinventory-review (uses local process-automated-builder registry).",
     )
     p_review.add_argument("--similarity-threshold", type=float, default=0.92)
     p_review.add_argument("--max-pairs-per-group", type=int, default=20000)
-    p_review.add_argument("--review-run-id", help="Passed through to lci-review flow profile for reporting.")
-    p_review.add_argument("--review-start-ts", help="Passed through to lci-review flow profile.")
-    p_review.add_argument("--review-end-ts", help="Passed through to lci-review flow profile.")
-    p_review.add_argument("--review-logic-version", help="Passed through to lci-review flow profile.")
+    p_review.add_argument("--review-run-id", help="Passed through to lifecycleinventory-review flow profile for reporting.")
+    p_review.add_argument("--review-start-ts", help="Passed through to lifecycleinventory-review flow profile.")
+    p_review.add_argument("--review-end-ts", help="Passed through to lifecycleinventory-review flow profile.")
+    p_review.add_argument("--review-logic-version", help="Passed through to lifecycleinventory-review flow profile.")
     p_review.add_argument(
         "--review-enable-llm",
         dest="review_enable_llm",
         action="store_true",
         default=None,
-        help="Force enable LLM semantic review in lci-review flow profile.",
+        help="Force enable LLM semantic review in lifecycleinventory-review flow profile.",
     )
     p_review.add_argument(
         "--review-disable-llm",
         dest="review_enable_llm",
         action="store_false",
-        help="Force disable LLM semantic review in lci-review flow profile.",
+        help="Force disable LLM semantic review in lifecycleinventory-review flow profile.",
     )
-    p_review.add_argument("--review-llm-model", help="LLM model passed to lci-review flow profile.")
-    p_review.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lci-review flow profile.")
-    p_review.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lci-review flow profile.")
+    p_review.add_argument("--review-llm-model", help="LLM model passed to lifecycleinventory-review flow profile.")
+    p_review.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lifecycleinventory-review flow profile.")
+    p_review.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lifecycleinventory-review flow profile.")
 
     def _add_remediate_args(parser_obj: argparse.ArgumentParser) -> None:
         parser_obj.add_argument("--run-dir", help="Run directory. Defaults inputs/outputs under it.")
@@ -2668,9 +2651,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_remediate_args(p_llm_fix)
 
-    p_fix = sub.add_parser("propose-fix", help="Deprecated alias of llm-remediate.")
-    _add_remediate_args(p_fix)
-
     p_bump = sub.add_parser(
         "bump-version-if-needed",
         help="Ensure patched flow versions equal base_version+1 (no version jumps).",
@@ -2689,7 +2669,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_schema.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/fix.")
     p_schema.add_argument("--include-unchanged", action="store_true", help="Validate unchanged copied flows too.")
 
-    p_validate = sub.add_parser("validate", help="Re-run lci-review --profile flow on schema-valid patched flows.")
+    p_validate = sub.add_parser("validate", help="Re-run lifecycleinventory-review --profile flow on schema-valid patched flows.")
     p_validate.add_argument(
         "--run-dir",
         help="Run directory. Defaults to <run-dir>/fix/schema_valid_flows when present, otherwise <run-dir>/fix/patched_flows.",
@@ -2697,32 +2677,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate.add_argument("--flows-dir", help="Directory of patched flow JSON files.")
     p_validate.add_argument("--out-dir", help="Output dir. Defaults to <run-dir>/validate.")
     p_validate.add_argument(
-        "--with-mcp-context",
+        "--with-reference-context",
         action="store_true",
-        help="Enable flowproperty/unitgroup reference-context enrichment in lci-review validate stage (compat flag name; uses local registry).",
+        help="Enable flowproperty/unitgroup reference-context enrichment in lifecycleinventory-review validate stage (uses local registry).",
     )
     p_validate.add_argument("--similarity-threshold", type=float, default=0.92)
     p_validate.add_argument("--max-pairs-per-group", type=int, default=20000)
-    p_validate.add_argument("--review-run-id", help="Passed through to lci-review flow profile for reporting.")
-    p_validate.add_argument("--review-start-ts", help="Passed through to lci-review flow profile.")
-    p_validate.add_argument("--review-end-ts", help="Passed through to lci-review flow profile.")
-    p_validate.add_argument("--review-logic-version", help="Passed through to lci-review flow profile.")
+    p_validate.add_argument("--review-run-id", help="Passed through to lifecycleinventory-review flow profile for reporting.")
+    p_validate.add_argument("--review-start-ts", help="Passed through to lifecycleinventory-review flow profile.")
+    p_validate.add_argument("--review-end-ts", help="Passed through to lifecycleinventory-review flow profile.")
+    p_validate.add_argument("--review-logic-version", help="Passed through to lifecycleinventory-review flow profile.")
     p_validate.add_argument(
         "--review-enable-llm",
         dest="review_enable_llm",
         action="store_true",
         default=None,
-        help="Force enable LLM semantic review in lci-review flow profile.",
+        help="Force enable LLM semantic review in lifecycleinventory-review flow profile.",
     )
     p_validate.add_argument(
         "--review-disable-llm",
         dest="review_enable_llm",
         action="store_false",
-        help="Force disable LLM semantic review in lci-review flow profile.",
+        help="Force disable LLM semantic review in lifecycleinventory-review flow profile.",
     )
-    p_validate.add_argument("--review-llm-model", help="LLM model passed to lci-review flow profile.")
-    p_validate.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lci-review flow profile.")
-    p_validate.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lci-review flow profile.")
+    p_validate.add_argument("--review-llm-model", help="LLM model passed to lifecycleinventory-review flow profile.")
+    p_validate.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lifecycleinventory-review flow profile.")
+    p_validate.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lifecycleinventory-review flow profile.")
 
     p_publish = sub.add_parser("publish", help="Append-only publish patched flows by MCP CRUD insert.")
     p_publish.add_argument("--run-dir", help="Run directory. Uses <run-dir>/fix/patch_manifest.jsonl and outputs to <run-dir>/publish.")
@@ -2746,32 +2726,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_pipeline.add_argument("--run-dir", required=True)
     p_pipeline.add_argument("--limit", type=int)
     p_pipeline.add_argument(
-        "--with-mcp-review-context",
+        "--with-reference-context",
         action="store_true",
-        help="Enable lci-review flow reference-context enrichment during review/validate (compat flag name; uses local registry).",
+        help="Enable lifecycleinventory-review flow reference-context enrichment during review/validate (uses local registry).",
     )
     p_pipeline.add_argument("--similarity-threshold", type=float, default=0.92)
     p_pipeline.add_argument("--max-pairs-per-group", type=int, default=20000)
-    p_pipeline.add_argument("--review-run-id", help="Passed through to lci-review flow profile for reporting.")
-    p_pipeline.add_argument("--review-start-ts", help="Passed through to lci-review flow profile.")
-    p_pipeline.add_argument("--review-end-ts", help="Passed through to lci-review flow profile.")
-    p_pipeline.add_argument("--review-logic-version", help="Passed through to lci-review flow profile.")
+    p_pipeline.add_argument("--review-run-id", help="Passed through to lifecycleinventory-review flow profile for reporting.")
+    p_pipeline.add_argument("--review-start-ts", help="Passed through to lifecycleinventory-review flow profile.")
+    p_pipeline.add_argument("--review-end-ts", help="Passed through to lifecycleinventory-review flow profile.")
+    p_pipeline.add_argument("--review-logic-version", help="Passed through to lifecycleinventory-review flow profile.")
     p_pipeline.add_argument(
         "--review-enable-llm",
         dest="review_enable_llm",
         action="store_true",
         default=None,
-        help="Force enable LLM semantic review in lci-review flow profile.",
+        help="Force enable LLM semantic review in lifecycleinventory-review flow profile.",
     )
     p_pipeline.add_argument(
         "--review-disable-llm",
         dest="review_enable_llm",
         action="store_false",
-        help="Force disable LLM semantic review in lci-review flow profile.",
+        help="Force disable LLM semantic review in lifecycleinventory-review flow profile.",
     )
-    p_pipeline.add_argument("--review-llm-model", help="LLM model passed to lci-review flow profile.")
-    p_pipeline.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lci-review flow profile.")
-    p_pipeline.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lci-review flow profile.")
+    p_pipeline.add_argument("--review-llm-model", help="LLM model passed to lifecycleinventory-review flow profile.")
+    p_pipeline.add_argument("--review-llm-max-flows", type=int, help="Max flows for LLM review in lifecycleinventory-review flow profile.")
+    p_pipeline.add_argument("--review-llm-batch-size", type=int, help="LLM batch size in lifecycleinventory-review flow profile.")
     p_pipeline.add_argument("--remediate-llm-model", help="LLM model for remediation stage.")
     p_pipeline.add_argument("--remediate-llm-base-url", help="OpenAI-compatible base URL for remediation stage.")
     p_pipeline.add_argument("--remediate-llm-api-key", help="Explicit API key for remediation stage.")
@@ -2829,7 +2809,7 @@ def main() -> int:
                 flows_dir = run_dir / "cache" / "flows"
                 out_dir = Path(args.out_dir).resolve() if args.out_dir else (run_dir / "review")
                 run_root = run_dir
-            summary = _run_lci_review_flow(
+            summary = _run_lifecycleinventory_review_flow(
                 flows_dir=flows_dir,
                 out_dir=out_dir,
                 run_root=run_root,
@@ -2842,13 +2822,13 @@ def main() -> int:
                 llm_model=args.review_llm_model,
                 llm_max_flows=args.review_llm_max_flows,
                 llm_batch_size=args.review_llm_batch_size,
-                with_mcp_context=bool(args.with_mcp_context),
+                with_reference_context=bool(args.with_reference_context),
                 similarity_threshold=args.similarity_threshold,
             )
             _print_json(summary)
             return 0
 
-        if args.command in {"llm-remediate", "propose-fix"}:
+        if args.command == "llm-remediate":
             run_dir = Path(args.run_dir).resolve() if args.run_dir else None
             if args.flows_dir:
                 flows_dir = Path(args.flows_dir).resolve()
@@ -2937,13 +2917,13 @@ def main() -> int:
                     "flow_count": 0,
                     "finding_count": 0,
                     "similarity_pair_count": 0,
-                    "with_mcp_context": bool(args.with_mcp_context),
+                    "with_reference_context": bool(args.with_reference_context),
                     "skipped": True,
                     "reason": f"no_flow_files:{flows_dir}",
                 }
                 _write_json(out_dir / "flow_review_summary.json", summary)
             else:
-                summary = _run_lci_review_flow(
+                summary = _run_lifecycleinventory_review_flow(
                     flows_dir=flows_dir,
                     out_dir=out_dir,
                     run_root=run_root,
@@ -2956,7 +2936,7 @@ def main() -> int:
                     llm_model=args.review_llm_model,
                     llm_max_flows=args.review_llm_max_flows,
                     llm_batch_size=args.review_llm_batch_size,
-                    with_mcp_context=bool(args.with_mcp_context),
+                    with_reference_context=bool(args.with_reference_context),
                     similarity_threshold=args.similarity_threshold,
                 )
             _print_json(summary)

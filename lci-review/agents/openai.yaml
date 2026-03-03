@@ -1,4 +1,0 @@
-interface:
-  display_name: "LCI Review"
-  short_description: "Unified LCI review with process/flow profiles"
-  default_prompt: "Use $lci-review to review process_from_flow outputs or a batch of flow JSON files with the appropriate profile."
