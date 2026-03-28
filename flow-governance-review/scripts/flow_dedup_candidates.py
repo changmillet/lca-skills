@@ -253,6 +253,7 @@ def main() -> None:
         "notes": [
             "family canonical collapses same-concept duplicate families for governance review",
             "property safe rewrite map is the only auto-merge-safe output; it never rewrites across different flow properties",
+            "same-UUID version lineage is outside semantic dedup scope and is not auto-merged here",
             "process reference counts are visibility-bounded by current Supabase/PostgREST permissions",
             "emergy-named flows are excluded only when --exclude-emergy is set",
         ],
@@ -1074,27 +1075,29 @@ def subdivide_bucket(rows: list[FlowSummary], max_size: int) -> list[list[FlowSu
 def classify_pair(left: FlowSummary, right: FlowSummary, args: argparse.Namespace) -> dict[str, Any] | None:
     if left.flow_type != right.flow_type:
         return None
-    metrics = similarity_metrics(left, right)
     same_uuid = left.flow_id == right.flow_id
+    if same_uuid:
+        return None
+    metrics = similarity_metrics(left, right)
     same_property = property_signature(left) == property_signature(right) and property_signature(left) != ""
     class_relation = classification_relation(left, right)
-    classification_compatible = class_relation in {"same_leaf", "missing_leaf"} or same_uuid or bool(metrics["shared_base_name"])
+    classification_compatible = class_relation in {"same_leaf", "missing_leaf"} or bool(metrics["shared_base_name"])
     qualifier_relation = metrics["qualifier_relation"]
     pair_label: str | None = None
     if same_property and classification_compatible:
         if qualifier_relation in {"exact", "both_missing"} and (
             metrics["shared_base_name"] or metrics["max_base_entry_similarity"] >= args.same_property_threshold
         ):
-            pair_label = "same_property_duplicate_candidate"
+            pair_label = "same_property_semantic_review"
         elif qualifier_relation in {"exact", "both_missing"} and metrics["token_jaccard"] >= 0.80 and metrics["base_ratio"] >= 0.86:
-            pair_label = "same_property_duplicate_candidate"
+            pair_label = "same_property_semantic_review"
     if not pair_label and classification_compatible and not same_property:
         if qualifier_relation in {"exact", "both_missing"} and (
             metrics["shared_base_name"] or metrics["max_base_entry_similarity"] >= args.cross_property_threshold
         ):
-            pair_label = "cross_property_duplicate_family"
+            pair_label = "cross_property_semantic_review"
         elif qualifier_relation in {"exact", "both_missing"} and metrics["token_jaccard"] >= 0.70 and metrics["base_ratio"] >= 0.88:
-            pair_label = "cross_property_duplicate_family"
+            pair_label = "cross_property_semantic_review"
     if not pair_label:
         if qualifier_relation == "conflict":
             if same_property and metrics["shared_base_name"]:
@@ -1108,8 +1111,6 @@ def classify_pair(left: FlowSummary, right: FlowSummary, args: argparse.Namespac
         ):
             pair_label = "near_duplicate_manual_review"
         elif metrics["base_ratio"] >= args.near_threshold and class_relation != "different_leaf":
-            pair_label = "near_duplicate_manual_review"
-        elif same_uuid and metrics["base_ratio"] >= 0.75:
             pair_label = "near_duplicate_manual_review"
     if not pair_label:
         return None
@@ -1150,23 +1151,33 @@ def build_clusters_and_maps(
     for pair in pair_rows:
         left_key = pair["left"]["flow_key"]
         right_key = pair["right"]["flow_key"]
-        if pair["pair_label"] in {"same_property_duplicate_candidate", "cross_property_duplicate_family"}:
+        if pair["pair_label"] == "same_property_duplicate_candidate":
             union_find.union(left_key, right_key)
             strong_edges[left_key].append(pair)
             strong_edges[right_key].append(pair)
         else:
+            review_type = "near_duplicate_pair"
+            reason = "Near duplicate candidate needs manual semantic review before any merge decision."
+            if pair["pair_label"] in {"same_property_semantic_review", "cross_property_semantic_review"}:
+                review_type = "semantic_duplicate_pair"
+                reason = "High-similarity pair is not auto-merge-safe; require semantic review before any merge decision."
             manual_review_rows.append(
                 {
-                    "review_type": "near_duplicate_pair",
+                    "review_type": review_type,
                     "pair_label": pair["pair_label"],
                     "left_flow_key": left_key,
                     "right_flow_key": right_key,
                     "signal_strength": pair["signal_strength"],
+                    "same_uuid": pair["same_uuid"],
+                    "same_property": pair["same_property"],
+                    "pair_scope": pair.get("pair_scope", ""),
+                    "left_in_subject_scope": pair.get("left_in_subject_scope"),
+                    "right_in_subject_scope": pair.get("right_in_subject_scope"),
                     "classification_relation": pair["classification_relation"],
                     "metrics": pair["metrics"],
                     "left": pair["left"],
                     "right": pair["right"],
-                    "reason": "Near duplicate candidate needs manual semantic review before any merge decision.",
+                    "reason": reason,
                 }
             )
 
@@ -1182,7 +1193,7 @@ def build_clusters_and_maps(
         cluster_pairs = [
             pair
             for pair in pair_rows
-            if pair["pair_label"] in {"same_property_duplicate_candidate", "cross_property_duplicate_family"}
+            if pair["pair_label"] == "same_property_duplicate_candidate"
             and pair["left"]["flow_key"] in member_keys
             and pair["right"]["flow_key"] in member_keys
         ]

@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--candidate-flows-file", help="Optional explicit candidate pool snapshot for dedup.")
     parser.add_argument("--processes-file", help="Optional process snapshot used for ref counts, scan/repair, and flow context.")
+    parser.add_argument("--process-pool-file", help="Optional local process pool file to sync patched process rows into.")
     parser.add_argument("--scope-flow-files", nargs="+", help="Optional target flow scope for downstream scan/text-review.")
     parser.add_argument("--old-flow-files", nargs="+", help="Optional pre-governance flow scope for alias-map build.")
     parser.add_argument("--new-flow-files", nargs="+", help="Optional post-governance flow scope for alias-map build.")
@@ -65,6 +66,8 @@ def main() -> None:
         manifest["inputs"]["candidate_flows_file"] = str(Path(args.candidate_flows_file).resolve())
     if args.processes_file:
         manifest["inputs"]["processes_file"] = str(Path(args.processes_file).resolve())
+    if args.process_pool_file:
+        manifest["inputs"]["process_pool_file"] = str(Path(args.process_pool_file).resolve())
 
     scope_flow_files = _resolve_scope_flow_files(args, review_rows_file)
     manifest["inputs"]["scope_flow_files"] = [str(path) for path in scope_flow_files]
@@ -120,6 +123,26 @@ def main() -> None:
     if args.public_origin_filter:
         dedup_cmd += ["--public-origin-filter", args.public_origin_filter]
     _run_step("flow_dedup_candidates", dedup_cmd, dedup_dir, manifest)
+
+    dedup_manual_queue_path = dedup_dir / "flow-dedup-manual-review.jsonl"
+    if _count_rows(dedup_manual_queue_path) > 0:
+        dedup_pack_dir = ensure_dir(out_dir / "dedup-pack")
+        dedup_pack_cmd = [
+            sys.executable,
+            str(SCRIPT_DIR / "openclaw_review_handoff.py"),
+            "export-dedup-review-pack",
+            "--review-queue-file",
+            str(dedup_manual_queue_path),
+            "--out-dir",
+            str(dedup_pack_dir),
+        ]
+        _run_step("export_openclaw_dedup_review_pack", dedup_pack_cmd, dedup_pack_dir, manifest)
+    else:
+        _record_skipped_step(
+            manifest,
+            "export_openclaw_dedup_review_pack",
+            "skipped because dedup/flow-dedup-manual-review.jsonl is empty.",
+        )
 
     effective_alias_map: Path | None = None
     if args.alias_map:
@@ -202,6 +225,8 @@ def main() -> None:
             "--out-dir",
             str(repair_apply_dir),
         ]
+        if args.process_pool_file:
+            repair_apply_cmd += ["--process-pool-file", str(Path(args.process_pool_file).resolve())]
         if effective_alias_map:
             repair_apply_cmd += ["--alias-map", str(effective_alias_map)]
         _run_step("apply_process_flow_repairs", repair_apply_cmd, repair_apply_dir, manifest)
@@ -280,13 +305,39 @@ def main() -> None:
         flow_text_cmd += ["--methodology-id", args.methodology_id]
     _run_step("export_openclaw_flow_text_review_pack", flow_text_cmd, flow_text_pack_dir, manifest)
 
+    flow_classification_pack_dir = ensure_dir(out_dir / "flow-classification-pack")
+    flow_classification_cmd = [
+        sys.executable,
+        str(SCRIPT_DIR / "openclaw_review_handoff.py"),
+        "export-classification-review-pack",
+        "--rows-file",
+        str(merged_scope_flow_file),
+        "--review-findings-file",
+        str(review_dir / "findings.jsonl"),
+        "--out-dir",
+        str(flow_classification_pack_dir),
+    ]
+    if args.methodology_file:
+        flow_classification_cmd += ["--methodology-file", str(Path(args.methodology_file).resolve())]
+    if args.methodology_id:
+        flow_classification_cmd += ["--methodology-id", args.methodology_id]
+    _run_step(
+        "export_openclaw_flow_classification_review_pack",
+        flow_classification_cmd,
+        flow_classification_pack_dir,
+        manifest,
+    )
+
     manifest["key_outputs"] = {
         "review_summary": str(review_dir / "flow_review_summary.json"),
         "dedup_summary": str(dedup_dir / "flow-dedup-summary.json"),
         "dedup_snapshot_manifest": str(dedup_dir / "flow-snapshot-manifest.json"),
+        "dedup_review_pack": str(out_dir / "dedup-pack" / "review-pack.json"),
         "effective_alias_map": str(effective_alias_map) if effective_alias_map else "",
         "flow_text_review_pack": str(flow_text_pack_dir / "review-pack.json"),
         "flow_text_review_context": str(flow_text_pack_dir / "review-pack-context.json"),
+        "flow_classification_review_pack": str(flow_classification_pack_dir / "review-pack.json"),
+        "flow_classification_review_context": str(flow_classification_pack_dir / "review-pack-context.json"),
     }
     if args.processes_file:
         manifest["key_outputs"].update(

@@ -21,6 +21,7 @@ from flow_governance_common import (
     normalize_text,
     patched_flow_reference,
     safe_process_key,
+    sync_process_pool_file,
     unified_json_diff,
 )
 
@@ -39,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--process-pool-file")
     return parser.parse_args()
 
 
@@ -114,6 +116,12 @@ def main() -> None:
     )
     if args.apply:
         dump_json(out_dir / "patched-processes.json", patched_rows)
+        if args.process_pool_file:
+            pool_sync = sync_process_pool_file(args.process_pool_file, patched_rows)
+            repair_summary_path = out_dir / "repair-summary.json"
+            repair_summary = load_json(repair_summary_path)
+            repair_summary["process_pool_sync"] = pool_sync
+            dump_json(repair_summary_path, repair_summary)
 
 
 def _scan_map(scan_findings: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:

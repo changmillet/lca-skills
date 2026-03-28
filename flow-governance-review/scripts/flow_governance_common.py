@@ -13,6 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+FLOW_GOVERNANCE_ROOT = SCRIPT_DIR.parent
+FLOW_PROCESSING_ARTIFACT_ROOT = FLOW_GOVERNANCE_ROOT / "assets" / "artifacts" / "flow-processing"
+FLOW_PROCESSING_DATASETS_DIR = FLOW_PROCESSING_ARTIFACT_ROOT / "datasets"
+FLOW_PROCESSING_VALIDATION_DIR = FLOW_PROCESSING_ARTIFACT_ROOT / "validation"
+FLOW_PROCESSING_NAMING_DIR = FLOW_PROCESSING_ARTIFACT_ROOT / "naming"
+
 DEFAULT_USER_ID = ""
 PUBLIC_TARGET_FLOW_TYPES = {"Product flow", "Waste flow"}
 FLOW_REF_KEYS = ("@refObjectId", "@version", "@type", "@uri", "common:shortDescription")
@@ -264,6 +271,40 @@ def extract_process_reference_flow_ref(process_row: dict[str, Any]) -> dict[str,
         "flow_text": lang_text(ref.get("common:shortDescription")),
         "exchange_internal_id": str(exchange.get("@dataSetInternalID") or "").strip(),
     }
+
+
+def process_row_key(process_row: dict[str, Any]) -> str:
+    process_id, version, _name = extract_process_identity(process_row)
+    if not process_id or not version:
+        return ""
+    return f"{process_id}@{version}"
+
+
+def process_row_sort_key(process_row: dict[str, Any]) -> tuple[str, tuple[int, ...], str]:
+    process_id, version, name = extract_process_identity(process_row)
+    return (process_id, version_key(version), name)
+
+
+def process_reference_flow_ids(process_row: dict[str, Any]) -> list[str]:
+    flow_ids: list[str] = []
+    seen: set[str] = set()
+    for exchange in exchange_records(process_row):
+        ref = exchange.get("referenceToFlowDataSet") or {}
+        if not isinstance(ref, dict):
+            continue
+        flow_id = str(ref.get("@refObjectId") or "").strip()
+        if not flow_id or flow_id in seen:
+            continue
+        seen.add(flow_id)
+        flow_ids.append(flow_id)
+    return flow_ids
+
+
+def process_references_flow_id(process_row: dict[str, Any], flow_id: str) -> bool:
+    target = str(flow_id or "").strip()
+    if not target:
+        return False
+    return target in set(process_reference_flow_ids(process_row))
 
 
 def build_flow_indexes(flow_rows: list[dict[str, Any]], scope_group: str = "") -> dict[str, Any]:
@@ -583,6 +624,90 @@ def load_rows_from_file(path: Path | str) -> list[dict[str, Any]]:
     return load_json_or_jsonl(path)
 
 
+def write_rows_file(path: Path | str, rows: list[dict[str, Any]]) -> None:
+    target = Path(path)
+    if target.suffix.lower() == ".jsonl":
+        dump_jsonl(target, rows)
+        return
+    dump_json(target, rows)
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for part in str(version or "").split("."):
+        try:
+            parts.append(int(part))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
+def json_equal(left: Any, right: Any) -> bool:
+    return json.dumps(left, ensure_ascii=False, sort_keys=True) == json.dumps(right, ensure_ascii=False, sort_keys=True)
+
+
+def merge_rows_by_identity(
+    existing_rows: list[dict[str, Any]],
+    incoming_rows: list[dict[str, Any]],
+    *,
+    entity_type: str,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    merged_rows = [deepcopy(row) for row in existing_rows if isinstance(row, dict)]
+    key_to_index: dict[str, int] = {}
+    for index, row in enumerate(merged_rows):
+        entity_id, version, _name = extract_entity_identity(entity_type, row)
+        if entity_id and version:
+            key_to_index[f"{entity_id}@{version}"] = index
+
+    inserted = 0
+    updated = 0
+    unchanged = 0
+    skipped_invalid = 0
+    for row in incoming_rows:
+        if not isinstance(row, dict):
+            skipped_invalid += 1
+            continue
+        entity_id, version, _name = extract_entity_identity(entity_type, row)
+        if not entity_id or not version:
+            skipped_invalid += 1
+            continue
+        key = f"{entity_id}@{version}"
+        if key not in key_to_index:
+            key_to_index[key] = len(merged_rows)
+            merged_rows.append(deepcopy(row))
+            inserted += 1
+            continue
+        existing_index = key_to_index[key]
+        if json_equal(merged_rows[existing_index], row):
+            unchanged += 1
+            continue
+        merged_rows[existing_index] = deepcopy(row)
+        updated += 1
+    return merged_rows, {
+        "inserted": inserted,
+        "updated": updated,
+        "unchanged": unchanged,
+        "skipped_invalid": skipped_invalid,
+    }
+
+
+def sync_process_pool_file(pool_file: Path | str, incoming_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    pool_path = Path(pool_file)
+    if pool_path.parent and not pool_path.parent.exists():
+        ensure_dir(pool_path.parent)
+    existing_rows = load_rows_from_file(pool_path) if pool_path.exists() else []
+    merged_rows, counts = merge_rows_by_identity(existing_rows, incoming_rows, entity_type="process")
+    merged_rows = sorted(merged_rows, key=process_row_sort_key)
+    write_rows_file(pool_path, merged_rows)
+    return {
+        "pool_file": str(pool_path),
+        "pool_pre_count": len(existing_rows),
+        "incoming_count": len(incoming_rows),
+        "pool_post_count": len(merged_rows),
+        **counts,
+    }
+
+
 def lang_entries(value: Any) -> list[dict[str, str]]:
     entries: list[dict[str, str]] = []
     if isinstance(value, list):
@@ -648,6 +773,149 @@ def path_contains_allowed_text_change(path: tuple[Any, ...], entity_type: str) -
         if len(path) >= len(prefix) and tuple(path[: len(prefix)]) == prefix:
             return True
     return False
+
+
+def flow_type_of_dataset(row: dict[str, Any]) -> str:
+    dataset = flow_dataset_from_row(row)
+    return str(
+        deep_get(dataset, ["modellingAndValidation", "LCIMethodAndAllocation", "typeOfDataSet"])
+        or deep_get(dataset, ["modellingAndValidation", "LCIMethod", "typeOfDataSet"])
+        or row.get("typeOfDataSet", "")
+        or ""
+    ).strip()
+
+
+def classification_branch_for_flow_type(flow_type: str) -> str:
+    normalized = str(flow_type or "").strip().lower()
+    if normalized in {"product flow", "waste flow"}:
+        return "product"
+    if normalized == "elementary flow":
+        return "elementary"
+    return ""
+
+
+def flow_classification_entries(row: dict[str, Any], branch: str) -> list[dict[str, str]]:
+    info = _entity_dataset_info(row, "flow")
+    if branch == "product":
+        raw_entries = deep_get(info, ["classificationInformation", "common:classification", "common:class"], [])
+        id_keys = ("@classId", "@catId", "@code")
+        target_key = "@classId"
+    elif branch == "elementary":
+        raw_entries = deep_get(
+            info,
+            ["classificationInformation", "common:elementaryFlowCategorization", "common:category"],
+            [],
+        )
+        id_keys = ("@catId", "@classId", "@code")
+        target_key = "@catId"
+    else:
+        raise RuntimeError(f"Unsupported flow classification branch: {branch}")
+
+    entries: list[dict[str, str]] = []
+    for item in listify(raw_entries):
+        if not isinstance(item, dict):
+            continue
+        code = ""
+        for key in id_keys:
+            code = str(item.get(key) or "").strip()
+            if code:
+                break
+        text = str(item.get("#text") or "").strip() or lang_text(item)
+        level = str(item.get("@level") or "").strip()
+        if not any((level, code, text)):
+            continue
+        entries.append(
+            {
+                "@level": level,
+                target_key: code,
+                "#text": text,
+            }
+        )
+    return entries
+
+
+def flow_classification_state(row: dict[str, Any]) -> dict[str, Any]:
+    flow_type = flow_type_of_dataset(row)
+    expected_branch = classification_branch_for_flow_type(flow_type)
+    product_entries = flow_classification_entries(row, "product")
+    elementary_entries = flow_classification_entries(row, "elementary")
+    active_branch = expected_branch
+    if not active_branch:
+        if product_entries and not elementary_entries:
+            active_branch = "product"
+        elif elementary_entries and not product_entries:
+            active_branch = "elementary"
+    active_entries = product_entries if active_branch == "product" else elementary_entries if active_branch == "elementary" else []
+    leaf = deepcopy(active_entries[-1]) if active_entries else {}
+    return {
+        "type_of_dataset": flow_type,
+        "expected_branch": expected_branch,
+        "active_branch": active_branch,
+        "product_entries": deepcopy(product_entries),
+        "elementary_entries": deepcopy(elementary_entries),
+        "active_entries": deepcopy(active_entries),
+        "leaf": leaf,
+        "has_both_branches": bool(product_entries and elementary_entries),
+    }
+
+
+def apply_flow_classification_patch(
+    row: dict[str, Any],
+    branch: str,
+    entries: list[dict[str, Any]],
+    *,
+    clear_other_branch: bool = True,
+) -> None:
+    info = _entity_dataset_info(row, "flow", create=True)
+    classification_info = info.get("classificationInformation")
+    if not isinstance(classification_info, dict):
+        info["classificationInformation"] = {}
+        classification_info = info["classificationInformation"]
+
+    normalized_entries = [deepcopy(item) for item in entries if isinstance(item, dict)]
+    if branch == "product":
+        classification_info["common:classification"] = {"common:class": normalized_entries}
+        if clear_other_branch:
+            classification_info.pop("common:elementaryFlowCategorization", None)
+        return
+    if branch == "elementary":
+        classification_info["common:elementaryFlowCategorization"] = {"common:category": normalized_entries}
+        if clear_other_branch:
+            classification_info.pop("common:classification", None)
+        return
+    raise RuntimeError(f"Unsupported flow classification branch: {branch}")
+
+
+def path_contains_allowed_flow_classification_change(path: tuple[Any, ...]) -> bool:
+    for prefix in allowed_flow_classification_change_prefixes():
+        if len(path) >= len(prefix) and tuple(path[: len(prefix)]) == prefix:
+            return True
+    return False
+
+
+def allowed_flow_classification_change_prefixes() -> list[tuple[Any, ...]]:
+    dataset_roots = (("json_ordered", "flowDataSet"), ("flowDataSet",))
+    subpaths = (
+        (
+            "flowInformation",
+            "dataSetInformation",
+            "classificationInformation",
+            "common:classification",
+            "common:class",
+        ),
+        (
+            "flowInformation",
+            "dataSetInformation",
+            "classificationInformation",
+            "common:elementaryFlowCategorization",
+            "common:category",
+        ),
+    )
+    prefixes: list[tuple[Any, ...]] = []
+    for root in dataset_roots:
+        for subpath in subpaths:
+            prefixes.append(root + subpath)
+    return prefixes
 
 
 def allowed_text_change_prefixes(entity_type: str) -> list[tuple[Any, ...]]:
