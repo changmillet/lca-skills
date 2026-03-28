@@ -2,7 +2,7 @@
 
 ## Endpoint
 - POST `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/process_hybrid_search`
-- Headers: `Authorization: Bearer <TIANGONG_LCA_APIKEY>`, `x-region: us-east-1`
+- Headers: `Authorization: Bearer <TIANGONG_LCA_API_KEY>`, `x-region: us-east-1`
 
 ## Input
 ```json
@@ -32,4 +32,4 @@
 - Expects Postgres function `hybrid_search_processes(query_text text, query_embedding text, filter_condition jsonb|text)`.
 
 ## Auth
-- `Authorization: Bearer <TIANGONG_LCA_APIKEY>` required; `TIANGONG_LCA_APIKEY` is a user key derived from email + password.
+- `Authorization: Bearer <TIANGONG_LCA_API_KEY>` required; `TIANGONG_LCA_API_KEY` is the canonical CLI auth variable.

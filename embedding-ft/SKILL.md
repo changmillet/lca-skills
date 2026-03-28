@@ -6,18 +6,18 @@ description: Execute and troubleshoot Supabase edge function `embedding_ft` that
 # Embedding FT
 
 ## Run Workflow
-1. Ensure `tiangong-lca-cli` is available locally, or set `TIANGONG_CLI_DIR`.
-2. Set `TIANGONG_API_KEY`, `TOKEN`, or `EMBEDDING_FT_TOKEN`, or pass `--token`.
-3. Execute `scripts/run-embedding-ft.sh` with a request file.
+1. Ensure `tiangong-lca-cli` is available locally, or set `TIANGONG_LCA_CLI_DIR`.
+2. Set `TIANGONG_LCA_API_KEY`, or pass the standard CLI flag `--api-key`.
+3. Execute `scripts/run-embedding-ft.sh` with standard `tiangong admin embedding-run` flags.
 4. The wrapper delegates to `tiangong admin embedding-run`.
 5. Inspect `completedJobs` and `failedJobs`, then triage via references.
 
 ## Commands
 ```bash
-scripts/run-embedding-ft.sh --dry-run
-scripts/run-embedding-ft.sh --token "$TOKEN"
-scripts/run-embedding-ft.sh --data ./assets/example-jobs.json --token "$TOKEN"
-TIANGONG_CLI_DIR=/path/to/tiangong-lca-cli scripts/run-embedding-ft.sh --dry-run --token "$TOKEN"
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-embedding-ft.sh --dry-run
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-embedding-ft.sh
+scripts/run-embedding-ft.sh --input ./assets/example-jobs.json --api-key "$TIANGONG_LCA_API_KEY"
+TIANGONG_LCA_CLI_DIR=/path/to/tiangong-lca-cli scripts/run-embedding-ft.sh --dry-run --api-key "$TIANGONG_LCA_API_KEY"
 ```
 
 ## Fast Triage

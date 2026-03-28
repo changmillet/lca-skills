@@ -2,17 +2,17 @@
 
 ## Preferred smoke test
 ```bash
-scripts/run-lifecyclemodel-hybrid-search.sh --token "$TIANGONG_LCA_APIKEY"
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-lifecyclemodel-hybrid-search.sh
 ```
 
 ## Dry run (request preview)
 ```bash
-scripts/run-lifecyclemodel-hybrid-search.sh --dry-run --token "$TIANGONG_LCA_APIKEY"
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-lifecyclemodel-hybrid-search.sh --dry-run
 ```
 
 ## Direct CLI equivalent
 ```bash
-node "${TIANGONG_CLI_DIR:-../tiangong-lca-cli}/bin/tiangong.js" search lifecyclemodel --input ./assets/example-request.json --api-key "$TIANGONG_API_KEY" --dry-run
+node "${TIANGONG_LCA_CLI_DIR:-../tiangong-lca-cli}/bin/tiangong.js" search lifecyclemodel --input ./assets/example-request.json --api-key "$TIANGONG_LCA_API_KEY" --dry-run
 ```
 
 ## Checklist

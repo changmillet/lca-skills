@@ -2,7 +2,7 @@
 
 ## Endpoint
 - POST `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/lifecyclemodel_hybrid_search`
-- Headers: `Authorization: Bearer <TIANGONG_LCA_APIKEY>`, `x-region: us-east-1`
+- Headers: `Authorization: Bearer <TIANGONG_LCA_API_KEY>`, `x-region: us-east-1`
 
 ## Input
 ```json

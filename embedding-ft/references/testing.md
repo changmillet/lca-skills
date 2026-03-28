@@ -2,17 +2,17 @@
 
 ## Preferred smoke test
 ```bash
-scripts/run-embedding-ft.sh --token "$TOKEN"
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-embedding-ft.sh
 ```
 
 ## Dry run (request preview)
 ```bash
-scripts/run-embedding-ft.sh --dry-run --token "$TOKEN"
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-embedding-ft.sh --dry-run
 ```
 
 ## Direct CLI equivalent
 ```bash
-node "${TIANGONG_CLI_DIR:-../tiangong-lca-cli}/bin/tiangong.js" admin embedding-run --input ./assets/example-jobs.json --api-key "$TIANGONG_API_KEY" --dry-run
+node "${TIANGONG_LCA_CLI_DIR:-../tiangong-lca-cli}/bin/tiangong.js" admin embedding-run --input ./assets/example-jobs.json --api-key "$TIANGONG_LCA_API_KEY" --dry-run
 ```
 
 ## Checklist

@@ -6,18 +6,18 @@ description: Execute and troubleshoot Supabase edge function `process_hybrid_sea
 # Process Hybrid Search
 
 ## Run Workflow
-1. Ensure `tiangong-lca-cli` is available locally, or set `TIANGONG_CLI_DIR`.
-2. Set `TIANGONG_API_KEY` / `TIANGONG_LCA_APIKEY`, or pass `--token`.
-3. Execute `scripts/run-process-hybrid-search.sh` with a request JSON file.
+1. Ensure `tiangong-lca-cli` is available locally, or set `TIANGONG_LCA_CLI_DIR`.
+2. Set `TIANGONG_LCA_API_KEY`, or pass the standard CLI flag `--api-key`.
+3. Execute `scripts/run-process-hybrid-search.sh` with standard `tiangong search process` flags.
 4. The wrapper delegates to `tiangong search process`.
 5. Confirm response shape, then debug with focused references.
 
 ## Commands
 ```bash
-scripts/run-process-hybrid-search.sh --dry-run --token "$TIANGONG_LCA_APIKEY"
-scripts/run-process-hybrid-search.sh --token "$TIANGONG_LCA_APIKEY"
-scripts/run-process-hybrid-search.sh --data ./assets/example-request.json --token "$TIANGONG_LCA_APIKEY"
-TIANGONG_CLI_DIR=/path/to/tiangong-lca-cli scripts/run-process-hybrid-search.sh --dry-run --token "$TIANGONG_API_KEY"
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-process-hybrid-search.sh --dry-run
+TIANGONG_LCA_API_KEY="<your-api-key>" scripts/run-process-hybrid-search.sh
+scripts/run-process-hybrid-search.sh --input ./assets/example-request.json --api-key "$TIANGONG_LCA_API_KEY"
+TIANGONG_LCA_CLI_DIR=/path/to/tiangong-lca-cli scripts/run-process-hybrid-search.sh --dry-run --api-key "$TIANGONG_LCA_API_KEY"
 ```
 
 ## Fast Triage
