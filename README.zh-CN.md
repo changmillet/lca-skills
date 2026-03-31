@@ -57,11 +57,13 @@ npm i skills@latest -g
 
 ## 执行说明
 
-轻量远程 skill 正在逐步收敛到统一的 `tiangong` CLI。
+本仓库中的 skills 已经收敛到统一的 `tiangong` CLI。
 
 当前约定：
 
 - 本地保留 `tiangong-lca-cli` 仓库
 - 或通过 `TIANGONG_LCA_CLI_DIR` 指向该仓库
 - skill wrapper 统一委托 `bin/tiangong.js` 执行，而不是继续各自维护一套 `curl` 逻辑
-- 对新迁移和后续重构的轻量 wrapper，直接使用原生 Node `.mjs` 入口，不再保留 shell 兼容壳
+- 对新迁移和后续重构的 skill，wrapper 入口优先直接使用原生 Node `.mjs`，不再新增 shell 兼容壳
+- skills 内部不再保留业务 Python、MCP transport、私有 env parsing 或 shell shim
+- 若能力缺失，先在 `tiangong-lca-cli` 中新增原生 `tiangong <noun> <verb>` 命令，再让 skill 调用它
