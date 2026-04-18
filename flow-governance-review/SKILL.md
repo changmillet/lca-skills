@@ -1,11 +1,11 @@
 ---
 name: flow-governance-review
-description: "Run the CLI-backed flow governance slices for review, remediation, deterministic process-flow repair, and reviewed-row publish handoff. Use `node scripts/run-flow-governance-review.mjs COMMAND ...` when you need the canonical `tiangong review flow` and `tiangong flow ...` surface from a skill wrapper."
+description: "Run the CLI-backed flow governance commands for review, remediation, deterministic process-flow repair, and publish preparation. Use `node scripts/run-flow-governance-review.mjs COMMAND ...` when you need the supported `tiangong review flow` and `tiangong flow ...` workflows from a skill wrapper."
 ---
 
 # Flow Governance Review
 
-Keep local JSON or JSONL payloads as the system of record. This skill is now a thin wrapper over CLI-backed governance commands only.
+Keep local JSON or JSONL payloads as the system of record. This skill is a thin wrapper around the supported CLI governance commands.
 
 Do not use this skill for:
 
@@ -17,6 +17,7 @@ Do not use this skill for:
 ## Runtime Model
 
 - The canonical entrypoint is `node scripts/run-flow-governance-review.mjs <command> ...`.
+- Write outputs to an explicit directory such as `/abs/path/artifacts/<case_slug>/...`.
 - Supported commands are all CLI-backed:
   - `review-flows` -> `tiangong review flow`
   - `flow-get` -> `tiangong flow get`
@@ -124,7 +125,7 @@ node scripts/run-flow-governance-review.mjs validate-processes \
   --out-dir /abs/path/validate
 ```
 
-## Removed Surface
+## Not Supported
 
 The following legacy commands were intentionally removed with the Python runtime:
 
@@ -136,7 +137,7 @@ The following legacy commands were intentionally removed with the Python runtime
 - `apply-openclaw-*`
 - `validate-openclaw-*`
 
-If one of those workflows is still needed, reintroduce it first as a native `tiangong review ...` or `tiangong flow ...` command. Do not recreate it inside this skill.
+If you need one of those workflows, add it first as a native `tiangong review ...` or `tiangong flow ...` command instead of rebuilding it inside this skill.
 
 ## Preferred Usage
 
@@ -163,20 +164,16 @@ Use the supported commands as composable slices:
 - `resolved-flow-rows.jsonl`, `review-input-rows.jsonl`, and `fetch-summary.json` from `materialize-db-flows`
 - `flow-dedup-canonical-map.json`, `flow-dedup-rewrite-plan.json`, `manual-semantic-merge-seed.current.json`, and `blocked-clusters.json` from `materialize-approved-decisions`
 
-## Artifact Layout
+## Example Output Layout
 
-Keep long-lived flow-processing bundles under `assets/artifacts/flow-processing/` instead of `docs/`.
+Write generated machine outputs to an explicit directory outside the skill source tree. Typical bundles include:
 
-Canonical retained bundles:
-
-- `assets/artifacts/flow-processing/datasets/`: shared flow pool, invalid-input scope, resolved flow pool, reusable `process_pool.jsonl`
-- `assets/artifacts/flow-processing/validation/`: grouped validation failures that still matter for remediation planning
-- `assets/artifacts/flow-processing/naming/remaining-after-aggressive/`: post-aggressive completeness summaries and zero-process residuals
-- `assets/artifacts/flow-processing/naming/zero-process-completion-pack/`: retained historical review materials
-- `assets/artifacts/flow-processing/remediation/`: deterministic remediation and publish preparation artifacts
-- `assets/artifacts/flow-remediation-batch-smoketest/`: historical smoke-test evidence for remediation-helper startup checks
-
-Do not treat `docs/` as the canonical home for these machine artifacts anymore. New helper-script defaults in this repo now write to the artifact tree above.
+- `/abs/path/artifacts/<case_slug>/flow-processing/datasets/`: shared flow pool, invalid-input scope, resolved flow pool, reusable `process_pool.jsonl`
+- `/abs/path/artifacts/<case_slug>/flow-processing/validation/`: grouped validation failures that still matter for remediation planning
+- `/abs/path/artifacts/<case_slug>/flow-processing/naming/remaining-after-aggressive/`: post-aggressive completeness summaries and zero-process residuals
+- `/abs/path/artifacts/<case_slug>/flow-processing/naming/zero-process-completion-pack/`: reference review materials retained for follow-up
+- `/abs/path/artifacts/<case_slug>/flow-processing/remediation/`: deterministic remediation and publish preparation artifacts
+- `/abs/path/artifacts/<case_slug>/flow-remediation-batch-smoketest/`: historical smoke-test evidence for remediation-helper startup checks
 
 ## Load References On Demand
 

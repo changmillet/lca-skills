@@ -15,6 +15,7 @@ node process-automated-builder/scripts/run-process-automated-builder.mjs batch-b
 node process-automated-builder/scripts/run-process-automated-builder.mjs auto-build \
   --flow-file /abs/path/reference-flow.json \
   --operation produce \
+  --out-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> \
   --json
 ```
 
@@ -23,13 +24,14 @@ Equivalent request-file form:
 ```bash
 node process-automated-builder/scripts/run-process-automated-builder.mjs auto-build \
   --input /abs/path/process-auto-build.request.json \
+  --out-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> \
   --json
 ```
 
 What this does today:
 
 - normalizes the request
-- creates one deterministic run root
+- creates one deterministic run root at the explicit `--out-dir`
 - writes stage directories and manifests
 - writes the initial state and handoff summary
 
@@ -37,6 +39,7 @@ What this does today:
 
 ```bash
 node process-automated-builder/scripts/run-process-automated-builder.mjs resume-build \
+  --run-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> \
   --run-id <run_id> \
   --json
 ```
@@ -51,6 +54,7 @@ Use this when a caller wants:
 
 ```bash
 node process-automated-builder/scripts/run-process-automated-builder.mjs publish-build \
+  --run-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> \
   --run-id <run_id> \
   --json
 ```
@@ -66,10 +70,13 @@ Use this when:
 ```bash
 node process-automated-builder/scripts/run-process-automated-builder.mjs batch-build \
   --input /abs/path/process-batch.request.json \
+  --out-dir /abs/path/artifacts/<case_slug>/process_batch/<batch_id> \
   --json
 ```
 
 Batch mode fans out deterministic local runs and records their reports in one batch ledger.
+
+The wrapper intentionally requires `--out-dir` / `--run-dir` instead of letting the CLI fall back to `cwd/artifacts/...`.
 
 ## Required Env
 

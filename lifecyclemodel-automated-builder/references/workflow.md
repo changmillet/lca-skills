@@ -11,6 +11,9 @@ The canonical entrypoint is:
 - `node scripts/run-lifecyclemodel-automated-builder.mjs build --input <manifest> --out-dir <dir>`
 - which delegates to `tiangong lifecyclemodel auto-build`
 
+The wrapper does not choose a default output directory.
+Provide `--out-dir`, typically under a path such as `/abs/path/artifacts/<case_slug>/...`.
+
 Follow-up commands are:
 
 - `node scripts/run-lifecyclemodel-automated-builder.mjs validate --run-dir <dir>`
@@ -32,11 +35,11 @@ The implemented stage order is:
    - compute `@multiplicationFactor`
    - produce native `json_ordered` only
 5. Local artifact write
-   - emit run-plan, manifest snapshot, selection note, model summary, connection summary, process catalog, and report
+   - emit run-plan, manifest snapshot, selection note, model summary, connection summary, process catalog, and report under the explicit run directory
 
-## Deferred Slices
+## Not Yet Implemented
 
-The current canonical wrapper intentionally does not implement:
+The current supported wrapper does not implement:
 
 - remote process discovery
 - reference-model discovery

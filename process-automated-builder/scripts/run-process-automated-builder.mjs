@@ -42,14 +42,16 @@ Runtime:
   local override           --cli-dir /path/to/tiangong-lca-cli or TIANGONG_LCA_CLI_DIR
 
 Notes:
-  - the wrapper is now CLI-only; it no longer exposes Python / LangGraph fallback modes
+  - the wrapper uses the CLI only; older alternate runtimes are not part of the supported path
   - there is no shell compatibility shim; call this .mjs entrypoint directly
+  - auto-build and batch-build require --out-dir
+  - resume-build and publish-build should use --run-dir so the output root stays explicit
 
 Examples:
-  node scripts/run-process-automated-builder.mjs auto-build --flow-file /abs/path/reference-flow.json --operation produce --json
-  node scripts/run-process-automated-builder.mjs resume-build --run-id <run_id> --json
-  node scripts/run-process-automated-builder.mjs publish-build --run-id <run_id> --json
-  node scripts/run-process-automated-builder.mjs batch-build --input /abs/path/batch-request.json --json
+  node scripts/run-process-automated-builder.mjs auto-build --flow-file /abs/path/reference-flow.json --operation produce --out-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> --json
+  node scripts/run-process-automated-builder.mjs resume-build --run-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> --run-id <run_id> --json
+  node scripts/run-process-automated-builder.mjs publish-build --run-dir /abs/path/artifacts/<case_slug>/process_from_flow/<run_id> --run-id <run_id> --json
+  node scripts/run-process-automated-builder.mjs batch-build --input /abs/path/batch-request.json --out-dir /abs/path/artifacts/<case_slug>/process_batch/<batch_id> --json
 `.trim();
 }
 
@@ -74,6 +76,12 @@ function writeTempJsonFile(prefix, value) {
 
 function hasFlag(flag, values) {
   return values.some((value) => value === flag || value.startsWith(`${flag}=`));
+}
+
+function requireFlag(flag, values, message) {
+  if (!hasFlag(flag, values)) {
+    fail(message);
+  }
 }
 
 function normalizeCliInputArgs(args) {
@@ -256,6 +264,12 @@ function runCanonicalAutoBuild(cliDir, args) {
       fail("--operation must be 'produce' or 'treat'.");
     }
 
+    requireFlag(
+      '--out-dir',
+      forwardArgs,
+      "auto-build requires --out-dir <dir>. Choose an explicit output path, for example /abs/path/artifacts/<case_slug>/.",
+    );
+
     if (!inputPath) {
       let resolvedFlowPath = flowFile ? path.resolve(flowFile) : null;
 
@@ -293,6 +307,11 @@ function runCanonicalAutoBuild(cliDir, args) {
 
 function runCanonicalInputCommand(cliDir, subcommand, args) {
   const { forwardArgs } = normalizeCliInputArgs(args);
+  requireFlag(
+    '--out-dir',
+    forwardArgs,
+    `${subcommand} requires --out-dir <dir>. Choose an explicit output path, for example /abs/path/artifacts/<case_slug>/.`,
+  );
   return runTiangongCommand(['process', subcommand, ...forwardArgs], { cliDir });
 }
 
@@ -322,8 +341,18 @@ function main() {
     case 'auto-build':
       return runCanonicalAutoBuild(cliDir, commandArgs);
     case 'resume-build':
+      requireFlag(
+        '--run-dir',
+        commandArgs,
+        'resume-build requires --run-dir <dir>. Use an explicit run directory under /abs/path/artifacts/<case_slug>/... and pass --run-id only as an optional consistency check.',
+      );
       return runTiangongCommand(['process', 'resume-build', ...commandArgs], { cliDir });
     case 'publish-build':
+      requireFlag(
+        '--run-dir',
+        commandArgs,
+        'publish-build requires --run-dir <dir>. Use an explicit run directory under /abs/path/artifacts/<case_slug>/... and pass --run-id only as an optional consistency check.',
+      );
       return runTiangongCommand(['process', 'publish-build', ...commandArgs], { cliDir });
     case 'batch-build':
       return runCanonicalInputCommand(cliDir, 'batch-build', commandArgs);

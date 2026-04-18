@@ -20,7 +20,8 @@ __pycache__/
 .coverage.*
 htmlcov/
 
-# Generated workspace artifacts
+# Generated workspace artifacts and local-only working data.
+# Keep reusable skill sources in git; keep runtime outputs in ignored paths.
 artifacts/
 test_files/
 
@@ -30,3 +31,7 @@ test_files/
 .DS_Store
 
 docs/
+test_data/
+friction/
+frictions/
+reports/

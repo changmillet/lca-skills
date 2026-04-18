@@ -1,7 +1,5 @@
 #!/usr/bin/env node
-import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 import {
   buildTiangongInvocation,
   normalizeCliRuntimeArgs,
@@ -9,11 +7,6 @@ import {
   renderShellCommand,
   runTiangongCommand,
 } from '../../scripts/lib/cli-launcher.mjs';
-
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-const skillDir = path.resolve(scriptDir, '..');
-const workspaceRoot = path.resolve(skillDir, '..', '..');
-const defaultOutDir = path.join(workspaceRoot, 'artifacts', 'lifecyclemodel-automated-builder', 'default-run');
 
 function fail(message) {
   console.error(`Error: ${message}`);
@@ -35,7 +28,7 @@ Build compatibility options:
   --dry-run                 Print the resolved CLI command and exit
 
 Canonical CLI commands:
-  tiangong lifecyclemodel auto-build --input <file> [--out-dir <dir>]
+  tiangong lifecyclemodel auto-build --input <file> --out-dir <dir>
   tiangong lifecyclemodel validate-build --run-dir <dir>
   tiangong lifecyclemodel publish-build --run-dir <dir>
 
@@ -46,7 +39,8 @@ Runtime:
 Notes:
   - build is implemented and delegates to tiangong lifecyclemodel auto-build
   - validate delegates to tiangong lifecyclemodel validate-build and re-runs local validation on one existing build run
-  - publish delegates to tiangong lifecyclemodel publish-build and prepares local publish handoff artifacts only`);
+  - publish delegates to tiangong lifecyclemodel publish-build and prepares local publish handoff artifacts only
+  - build requires an explicit --out-dir; choose an output path such as /abs/path/artifacts/<case_slug>/...`);
 }
 
 function runCli(cliDir, cliArgs) {
@@ -132,7 +126,9 @@ function runBuild(cliDir, args) {
   );
 
   if (!hasOutDir) {
-    cliArgs.push('--out-dir', defaultOutDir);
+    fail(
+      'build requires --out-dir <dir>. Choose an explicit output path, for example /abs/path/artifacts/<case_slug>/.',
+    );
   }
 
   cliArgs.push(...normalized.forwardArgs);

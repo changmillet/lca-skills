@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This skill exposes only the CLI-backed governance slices that still exist in the workspace. It is a local-first wrapper layer, not a second orchestration runtime.
+This skill is a thin wrapper around the supported CLI-backed governance commands. It does not introduce a second orchestration runtime.
 
 ## Runtime Model
 
@@ -15,6 +15,8 @@ This skill exposes only the CLI-backed governance slices that still exist in the
 - Command ownership:
   - review lives in `tiangong review flow`
   - read/repair/publish slices live in `tiangong flow ...`
+
+Write outputs to an explicit directory such as `/abs/path/artifacts/<case_slug>/...`.
 
 ## Supported Commands
 
@@ -41,9 +43,9 @@ Supported commands:
 - `regen-product`
 - `validate-processes`
 
-## Removed Surface
+## Not Supported
 
-The previous Python/OpenClaw orchestration layer was intentionally removed.
+The previous Python/OpenClaw orchestration layer is not part of the supported wrapper surface.
 
 Not available anymore:
 
@@ -131,16 +133,16 @@ When the task is already grounded on an existing local reviewed-row snapshot:
   - `validation-report.json`
   - `validation-failures.jsonl`
 
-## Artifact Layout
+## Example Output Layout
 
-Persistent machine outputs belong under:
+Generated machine outputs are typically organized under:
 
-- `assets/artifacts/flow-processing/datasets/`
-- `assets/artifacts/flow-processing/validation/`
-- `assets/artifacts/flow-processing/naming/`
-- `assets/artifacts/flow-processing/remediation/`
+- `/abs/path/artifacts/<case_slug>/flow-processing/datasets/`
+- `/abs/path/artifacts/<case_slug>/flow-processing/validation/`
+- `/abs/path/artifacts/<case_slug>/flow-processing/naming/`
+- `/abs/path/artifacts/<case_slug>/flow-processing/remediation/`
 
-Do not reintroduce these artifacts under `docs/`.
+Do not reintroduce these artifacts under `docs/` or `assets/` in this repository.
 
 ## Guardrails
 

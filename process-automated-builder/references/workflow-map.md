@@ -9,13 +9,13 @@ Keep `process-automated-builder` as a thin wrapper over the unified CLI surface:
 - `tiangong process publish-build`
 - `tiangong process batch-build`
 
-This skill no longer owns a second business runtime.
+This skill does not add a second runtime layer.
 
 ## Supported Input Paths
 
 For a new run:
 
-- `node scripts/run-process-automated-builder.mjs auto-build --input <request.json>`
+- `node scripts/run-process-automated-builder.mjs auto-build --input <request.json> --out-dir <dir>`
 - or compatibility flow input flags:
   - `--flow-file`
   - `--flow-json`
@@ -23,12 +23,12 @@ For a new run:
 
 For an existing run:
 
-- `node scripts/run-process-automated-builder.mjs resume-build --run-id <run_id>`
-- `node scripts/run-process-automated-builder.mjs publish-build --run-id <run_id>`
+- `node scripts/run-process-automated-builder.mjs resume-build --run-dir <dir> [--run-id <run_id>]`
+- `node scripts/run-process-automated-builder.mjs publish-build --run-dir <dir> [--run-id <run_id>]`
 
 For a batch manifest:
 
-- `node scripts/run-process-automated-builder.mjs batch-build --input <batch-request.json>`
+- `node scripts/run-process-automated-builder.mjs batch-build --input <batch-request.json> --out-dir <dir>`
 
 ## Canonical Runtime Layers
 
@@ -48,9 +48,12 @@ For a batch manifest:
 
 There is no Python, shell, MCP, LangGraph, OpenAI, KB, or TianGong unstructured runtime left in this skill.
 
-## Current Artifact Contract
+The wrapper does not infer output directories from `cwd`; pass them explicitly.
+For repeatable runs, use explicit paths such as `/abs/path/artifacts/<case_slug>/...`.
 
-`auto-build` prepares one run root under `artifacts/process_from_flow/<run_id>/` and writes:
+## Current Output Layout
+
+`auto-build` prepares one run root under the explicit `--out-dir` and writes:
 
 - `request/pff-request.json`
 - `request/request.normalized.json`
@@ -66,20 +69,20 @@ There is no Python, shell, MCP, LangGraph, OpenAI, KB, or TianGong unstructured 
 - `reports/process-auto-build-report.json`
 - staged directories under `stage_outputs/01_*` through `stage_outputs/10_publish/`
 
-`resume-build` reopens one run and writes:
+`resume-build` reopens the explicit `--run-dir` and writes:
 
 - `manifests/resume-metadata.json`
 - `manifests/resume-history.jsonl`
 - `reports/process-resume-build-report.json`
 
-`publish-build` prepares one local publish handoff bundle and writes:
+`publish-build` prepares one local publish handoff bundle under the explicit `--run-dir` and writes:
 
 - `stage_outputs/10_publish/publish-bundle.json`
 - `stage_outputs/10_publish/publish-request.json`
 - `stage_outputs/10_publish/publish-intent.json`
 - `reports/process-publish-build-report.json`
 
-`batch-build` prepares multiple local runs and writes:
+`batch-build` prepares multiple local runs under the explicit `--out-dir` and writes:
 
 - `request/batch-request.json`
 - `request/request.normalized.json`
