@@ -12,7 +12,7 @@ const defaultSkillsRepoRoot = path.resolve(launcherDir, '..', '..');
 
 function normalizeCliDir(cliDir) {
   const trimmed = cliDir?.trim();
-  return trimmed ? trimmed : null;
+  return trimmed ? path.resolve(trimmed) : null;
 }
 
 function resolveNpmCommand() {
