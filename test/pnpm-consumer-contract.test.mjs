@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,6 +35,44 @@ function collectMarkdown(rootDir) {
   }
   return files;
 }
+
+function runGit(cwd, args) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    shell: false,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+}
+
+test('markdown inventory excludes untracked nested repositories under .ci', () => {
+  const fixtureRoot = mkdtempSync(path.join(tmpdir(), 'skills-markdown-inventory-'));
+  const nestedRoot = path.join(fixtureRoot, '.ci', 'tiangong-lca-cli');
+
+  try {
+    runGit(fixtureRoot, ['init', '--quiet']);
+    writeFileSync(path.join(fixtureRoot, 'README.md'), '# tracked root\n', 'utf8');
+    runGit(fixtureRoot, ['add', '--', 'README.md']);
+
+    mkdirSync(nestedRoot, { recursive: true });
+    runGit(nestedRoot, ['init', '--quiet']);
+    writeFileSync(
+      path.join(nestedRoot, 'README.md'),
+      'npx -y @tiangong-lca/cli@latest --help\n',
+      'utf8',
+    );
+    runGit(nestedRoot, ['add', '--', 'README.md']);
+
+    const inventory = collectMarkdown(fixtureRoot)
+      .map((filePath) => path.relative(fixtureRoot, filePath))
+      .sort();
+    assert.deepEqual(inventory, ['README.md']);
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
 
 test('repository package contract pins the workspace Node and pnpm versions', () => {
   const manifest = JSON.parse(read('package.json'));
