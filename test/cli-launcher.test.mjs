@@ -260,6 +260,30 @@ test('runTiangongCommand rejects a mismatched pnpm runtime before CLI dispatch',
   assert.equal(dispatched, false);
 });
 
+test('runTiangongCommand caches one successful toolchain verification per process', () => {
+  let verificationCount = 0;
+  let dispatchCount = 0;
+  const toolchainSpawnImpl = () => {
+    verificationCount += 1;
+    return { status: 0, stdout: `${expectedPnpmVersion}\n`, stderr: '' };
+  };
+  const options = {
+    repoRoot: '/workspace/skills',
+    pathExists: () => false,
+    nodeVersion: expectedNodeVersion,
+    toolchainSpawnImpl,
+    spawnImpl: () => {
+      dispatchCount += 1;
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  };
+
+  assert.equal(runTiangongCommand(['--help'], options), 0);
+  assert.equal(runTiangongCommand(['--help'], options), 0);
+  assert.equal(verificationCount, 1);
+  assert.equal(dispatchCount, 2);
+});
+
 test('runTiangongCommand installs from the frozen local lockfile before rebuilding a stale CLI', () => {
   const cliDir = '/workspace/tiangong-lca-cli';
   const fixture = localCliFixture(cliDir);

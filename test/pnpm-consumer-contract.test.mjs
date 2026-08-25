@@ -40,14 +40,20 @@ test('repository package contract pins the workspace Node and pnpm versions', ()
 test('validation CI installs the exact CLI checkout through frozen pnpm only', () => {
   const workflow = read('.github/workflows/validate-skills.yml');
 
-  assert.match(workflow, /ref: cli-v0\.1\.1/u);
-  assert.match(workflow, /node-version: '24\.19\.0'/u);
-  assert.match(workflow, /uses: pnpm\/action-setup@v4/u);
-  assert.match(workflow, /version: 11\.23\.0/u);
-  assert.match(workflow, /cache: pnpm/u);
+  assert.match(workflow, /ref: be8d042b8ed3f961038bf870388a46388478e9a7/u);
+  assert.match(
+    workflow,
+    /uses: pnpm\/setup@84cb39b217b10273981911c288cd62326dc7c6d2/u,
+  );
+  assert.match(workflow, /runtime: node@24\.19\.0/u);
+  assert.match(workflow, /install: false/u);
+  assert.match(workflow, /cache: true/u);
   assert.match(workflow, /pnpm install --frozen-lockfile/u);
   assert.match(workflow, /pnpm run build/u);
-  assert.doesNotMatch(workflow, /package-lock\.json|\bnpm (?:ci|exec|run)\b/u);
+  assert.doesNotMatch(
+    workflow,
+    /pnpm\/action-setup|actions\/setup-node|package-lock\.json|\bnpm (?:ci|exec|run)\b/u,
+  );
 });
 
 test('local push gate prepares Skills and CLI through frozen pnpm only', () => {
