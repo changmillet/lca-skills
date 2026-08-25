@@ -10,6 +10,7 @@ import {
   publishedCliCommand,
   withCliRuntimeEnv,
 } from "./lib/cli-launcher.mjs";
+import { flowGovernanceCliCommandEntries } from "../flow-governance-review/scripts/lib/cli-command-manifest.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -229,18 +230,12 @@ const repoWideDocGuards = [
 ];
 
 const targetedSmokeChecks = [
-  {
+  ...flowGovernanceCliCommandEntries.map(({ wrapperCommand }) => ({
     skill: "flow-governance-review",
     script: "flow-governance-review/scripts/run-flow-governance-review.mjs",
-    args: ["materialize-db-flows", "--help"],
-    description: "flow-governance-review materialize-db-flows help",
-  },
-  {
-    skill: "flow-governance-review",
-    script: "flow-governance-review/scripts/run-flow-governance-review.mjs",
-    args: ["materialize-approved-decisions", "--help"],
-    description: "flow-governance-review materialize-approved-decisions help",
-  },
+    args: [wrapperCommand, "--help"],
+    description: `flow-governance-review ${wrapperCommand} manifest help`,
+  })),
   {
     skill: "flow-governance-review",
     script:
