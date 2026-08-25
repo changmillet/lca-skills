@@ -85,6 +85,26 @@ test('normalizeCliRuntimeArgs keeps explicit cli-dir overrides above auto-discov
   assert.deepEqual(args, ['embedding-ft', '--help']);
 });
 
+test('normalizeCliRuntimeArgs can explicitly select the published CLI above sibling discovery', () => {
+  const { cliDir, args } = normalizeCliRuntimeArgs(
+    ['--published-cli', 'embedding-ft', '--help'],
+    {
+      repoRoot: '/workspace/tiangong-lca-skills',
+      pathExists: () => true,
+    },
+  );
+
+  assert.equal(cliDir, null);
+  assert.deepEqual(args, ['embedding-ft', '--help']);
+
+  const invocation = buildTiangongInvocation(args, {
+    cliDir,
+    repoRoot: '/workspace/tiangong-lca-skills',
+    pathExists: () => true,
+  });
+  assert.equal(invocation.mode, 'published');
+});
+
 test('buildTiangongInvocation uses exact pnpm dlx argv for the published CLI contract', () => {
   const invocation = buildTiangongInvocation(['qa', 'process', '--help'], {
     repoRoot: '/workspace/tiangong-lca-skills',

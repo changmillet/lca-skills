@@ -50,6 +50,7 @@ test('validation CI installs the exact CLI checkout through frozen pnpm only', (
   assert.match(workflow, /cache: true/u);
   assert.match(workflow, /pnpm install --frozen-lockfile/u);
   assert.match(workflow, /pnpm run build/u);
+  assert.match(workflow, /run-process-hybrid-search\.mjs --published-cli --help/u);
   assert.doesNotMatch(
     workflow,
     /pnpm\/action-setup|actions\/setup-node|package-lock\.json|\bnpm (?:ci|exec|run)\b/u,
