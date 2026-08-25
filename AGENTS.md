@@ -102,6 +102,7 @@ Route those tasks to:
 - `external-dataset-curated-import`, `source-evidence-dataset-development`, and `dataset-rls-maintenance` are top-level workflow skills only; executable conversion, queue state, validation, QA, write/delete/redo, and verify behavior stays in CLI/Foundry-owned commands.
 - Dataset maintenance under user RLS must use CLI-owned maintenance plans and readback verification. Skills must not add direct Supabase CRUD, service-role paths, or broad delete filters.
 - Node package execution is pinned to Node `24.19.0` and pnpm `11.23.0`; the exact published fallback is `@tiangong-lca/cli@0.1.1` and must never float through `@latest`.
+- Use `--published-cli` when a case must bypass a discovered sibling and exercise the exact published package explicitly.
 - Local CLI checkouts selected by wrappers must match the pinned CLI package/engine/lockfile evidence. When their source is newer than `dist/src/main.js`, wrappers install with `pnpm install --frozen-lockfile` before `pnpm run build`; wrappers should still keep the CLI command surface in `tiangong-lca-cli`.
 - CLI child processes use authoritative argv arrays with `shell: false` and preserve child exit/stdout/stderr.
 - The canonical local validation command is `pnpm validate` after `pnpm install --frozen-lockfile`.

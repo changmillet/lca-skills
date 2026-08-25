@@ -284,7 +284,7 @@ function parseArgs(rawArgs) {
 function printHelp() {
   console.log(
     `Usage:
-  pnpm validate -- [--cli-dir <dir>] [skill-path ...]
+  pnpm validate -- [--cli-dir <dir> | --published-cli] [skill-path ...]
 
 Examples:
   pnpm validate
@@ -305,6 +305,7 @@ CLI runtime:
     - ../tiangong-cli
   - otherwise wrappers fall back to ${publishedCliCommand}
   - use --cli-dir or TIANGONG_LCA_CLI_DIR to force a local working tree
+  - use --published-cli to bypass sibling discovery and verify the exact published package
 `.trim(),
   );
 }

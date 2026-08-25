@@ -66,6 +66,11 @@ export function normalizeCliRuntimeArgs(rawArgs, options = {}) {
       continue;
     }
 
+    if (arg === '--published-cli') {
+      cliDir = null;
+      continue;
+    }
+
     args.push(arg);
   }
 
@@ -139,12 +144,12 @@ function readLocalCliPackageEvidence(cliDir, options) {
 export function buildTiangongInvocation(tiangongArgs, options = {}) {
   const pathExists = options.pathExists ?? existsSync;
   const searchedCliDirs = defaultLocalCliDirCandidates(options.repoRoot);
-  const cliDir =
-    normalizeCliDir(options.cliDir) ??
-    resolveDefaultLocalCliDir({
-      repoRoot: options.repoRoot,
-      pathExists,
-    });
+  const cliDir = Object.prototype.hasOwnProperty.call(options, 'cliDir')
+    ? normalizeCliDir(options.cliDir)
+    : resolveDefaultLocalCliDir({
+        repoRoot: options.repoRoot,
+        pathExists,
+      });
 
   if (cliDir) {
     const cliBin = path.join(cliDir, 'bin', 'tiangong-lca.js');

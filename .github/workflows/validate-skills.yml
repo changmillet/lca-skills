@@ -51,7 +51,7 @@ jobs:
 
       - name: Validate exact published CLI fallback
         if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x64'
-        run: node process-hybrid-search/scripts/run-process-hybrid-search.mjs --help
+        run: node process-hybrid-search/scripts/run-process-hybrid-search.mjs --published-cli --help
 
       - name: Validate skills
         env:
