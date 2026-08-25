@@ -64,6 +64,7 @@ function passingToolchain() {
 
 test('normalizeCliRuntimeArgs auto-discovers the alternate tiangong-cli sibling', () => {
   const { cliDir, args } = normalizeCliRuntimeArgs(['embedding-ft', '--help'], {
+    env: {},
     repoRoot: '/workspace/tiangong-lca-skills',
     pathExists: (candidate) => candidate === '/workspace/tiangong-cli',
   });
