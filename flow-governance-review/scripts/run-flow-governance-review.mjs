@@ -106,7 +106,7 @@ function main() {
     process.exit(0);
   }
 
-  if (cliBackedCommands.has(command)) {
+  if (resolveFlowGovernanceCliArgv(command)) {
     process.exit(runCliBackedCommand(command, cliDir, forwardedArgs));
   }
 

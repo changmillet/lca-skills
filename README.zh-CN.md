@@ -126,7 +126,7 @@ npx skills update --project --yes
   ```
 - 只校验本次变更的 skill:
   ```bash
-  pnpm validate -- lifecycleinventory-qa process-hybrid-search
+  pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
 - CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.1` 的不可变 merge commit `be8d042b8ed3f961038bf870388a46388478e9a7`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
 
