@@ -36,8 +36,8 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-06-04
-lastReviewedCommit: 7c5039a212974a8e3c8392e31c18f72d0322dfe1
+lastReviewedAt: 2026-08-25
+lastReviewedCommit: 06fbd534fc8e31b9709e010fb79b1baaa9e8a055
 related:
   - .docpact/config.yaml
   - docs/agents/repo-architecture.md
@@ -52,6 +52,7 @@ related:
 `tiangong-lca-skills` owns checked-in skill wrappers and skill packaging metadata for TianGong agent workflows. Start here when the task may change `SKILL.md`, `agents/openai.yaml`, validation rules, or the thin wrappers that connect skills to the unified CLI.
 
 Review note, 2026-06-02: dataset import curation queue guidance remains skill instruction only; CLI and Foundry own queue construction, curation package assembly, and deterministic gates.
+Review note, 2026-08-25: CLI-backed package execution is pinned to Node 24.19.0, pnpm 11.23.0, and published CLI 0.1.1; external Vercel `npx skills` commands remain outside this package-manager migration.
 
 ## AI Load Order
 

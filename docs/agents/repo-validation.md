@@ -29,8 +29,8 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-06-04
-lastReviewedCommit: 7c5039a212974a8e3c8392e31c18f72d0322dfe1
+lastReviewedAt: 2026-08-25
+lastReviewedCommit: 06fbd534fc8e31b9709e010fb79b1baaa9e8a055
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -47,6 +47,7 @@ pnpm prepush:gate
 ```
 
 Review note, 2026-06-04: external runtime source-evidence skill guidance remains documentation and instruction-layer work. The new top-level Foundry scenario skills are included in `scripts/validate-skills.mjs`; no new runtime validator path is required because the external Tiangong KB skill is not checked into this repository.
+Review note, 2026-08-25: validation now covers the immutable pnpm/Node/CLI consumer contract, exact published and local CLI cases, argv-only dispatch, and live CLI help checks for every flow-governance wrapper manifest route.
 
 The local `pre-push` hook runs docpact first, validates Node `24.19.0` / pnpm `11.23.0`, installs Skills and any selected local `tiangong-lca-cli` from frozen lockfiles, builds that CLI when available, and then runs the repository test/validation gate. The GitHub `validate-skills` workflow is manual-dispatch only, so ordinary pushes rely on the local gate.
 

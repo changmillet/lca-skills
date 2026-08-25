@@ -29,8 +29,8 @@ checkPaths:
   - scripts/lib/cli-launcher.mjs
   - package.json
   - pnpm-lock.yaml
-lastReviewedAt: 2026-06-04
-lastReviewedCommit: 7c5039a212974a8e3c8392e31c18f72d0322dfe1
+lastReviewedAt: 2026-08-25
+lastReviewedCommit: 06fbd534fc8e31b9709e010fb79b1baaa9e8a055
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -43,6 +43,7 @@ related:
 
 Review note, 2026-06-02: dataset import curation queue changes keep this repository at the workflow-instruction layer; executable queue and curation gate behavior stays in CLI and Foundry.
 Review note, 2026-06-04: Foundry now has two checked-in top-level scenario skills, `external-dataset-curated-import` and `source-evidence-dataset-development`. They coordinate existing CLI/child-skill surfaces and must not grow package parsing, database write, or evidence retrieval implementations.
+Review note, 2026-08-25: the repository adds only a pnpm validation package and shared JavaScript launcher contract; it does not add a first-party TypeScript compiler or move CLI business logic into Skills.
 
 ## Owned Surfaces
 

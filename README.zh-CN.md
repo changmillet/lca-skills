@@ -18,8 +18,8 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-06-04
-lastReviewedCommit: 83749eb1836f7d64a4cf59c21d46200baefbae7c
+lastReviewedAt: 2026-08-25
+lastReviewedCommit: 06fbd534fc8e31b9709e010fb79b1baaa9e8a055
 ---
 
 # 天工 LCA Skills
