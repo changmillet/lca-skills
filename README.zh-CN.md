@@ -19,7 +19,7 @@ checkPaths:
   - "*/SKILL.md"
   - "*/scripts/**"
 lastReviewedAt: 2026-08-25
-lastReviewedCommit: 06fbd534fc8e31b9709e010fb79b1baaa9e8a055
+lastReviewedCommit: 9f77978b1cc6a7e28ed4f6d755307b8d55e3f18d
 ---
 
 # 天工 LCA Skills
