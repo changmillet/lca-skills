@@ -136,11 +136,11 @@ Skills in this repository are expected to be thin wrappers over the unified `tia
 
 Current rules:
 
-- wrappers auto-discover a local sibling CLI checkout first when `../tiangong-lca-cli` or `../tiangong-cli` exists
-- otherwise wrappers fall back to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`
-- use `--cli-dir` or `TIANGONG_LCA_CLI_DIR` to force a specific local CLI working tree during dev/CI
-- use `--published-cli` to bypass sibling auto-discovery for an explicit published-package case; nested wrappers propagate that selection without falling back to a sibling
+- wrappers default to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`; sibling directories are never auto-discovered
+- local execution is opt-in only through `--cli-dir` or `TIANGONG_LCA_CLI_DIR`
+- use `--published-cli` to override a local CLI environment for an explicit published-package case; nested wrappers propagate that selection
 - local CLI overrides must identify `@tiangong-lca/cli@0.1.1` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
+- the local pre-push hook validates CLI package and lock evidence before it installs or builds an explicitly selected local checkout
 - launcher execution uses argv arrays with `shell: false`, so paths containing spaces remain one argument and child exit/stdout/stderr are preserved
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts
 - use native cross-platform Node `.mjs` wrappers as the canonical entrypoint
