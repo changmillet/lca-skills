@@ -71,7 +71,9 @@ test('local push gate defaults published and validates explicit local evidence b
   assert.match(hook, /pnpm prepush:gate/u);
   assert.match(hook, /TIANGONG_LCA_CLI_MODE=published/u);
   assert.doesNotMatch(hook, /\.\.\/tiangong-lca-cli|\.\.\/tiangong-cli/u);
-  const evidenceIndex = hook.indexOf('check-toolchain.mjs --cli-dir "$cli_dir"');
+  const evidenceIndex = hook.indexOf(
+    'node "$repo_root/scripts/check-toolchain.mjs" --cli-dir "$cli_dir"',
+  );
   const localInstallIndex = hook.indexOf(
     'cd "$cli_dir" && pnpm install --frozen-lockfile',
   );
