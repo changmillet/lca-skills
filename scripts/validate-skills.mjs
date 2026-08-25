@@ -5,7 +5,6 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  defaultLocalCliDirCandidates,
   normalizeCliRuntimeArgs,
   publishedCliCommand,
   withCliRuntimeEnv,
@@ -14,7 +13,6 @@ import { flowGovernanceCliCommandEntries } from "../flow-governance-review/scrip
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
-const localCliDirCandidates = defaultLocalCliDirCandidates(repoRoot);
 
 const defaultSkillNames = [
   "process-hybrid-search",
@@ -61,7 +59,7 @@ const historicalValidatePyCurrentPathPattern = new RegExp(
   "iu",
 );
 const legacyPublishedCliInvocationPattern =
-  /@tiangong-lca\/cli@latest|npm exec[^\n]*@tiangong-lca\/cli/iu;
+  /@tiangong-lca\/cli@latest|npm exec[^\n]*@tiangong-lca\/cli|npx[^\n]*@tiangong-lca\/cli/iu;
 
 const docGuards = [
   {
@@ -300,12 +298,9 @@ What this validates:
   - targeted doc guards that prevent stale shell/Python migration wording
 
 CLI runtime:
-  - default local repo validation uses the first sibling repo that exists:
-    - ../tiangong-lca-cli
-    - ../tiangong-cli
-  - otherwise wrappers fall back to ${publishedCliCommand}
-  - use --cli-dir or TIANGONG_LCA_CLI_DIR to force a local working tree
-  - use --published-cli to bypass sibling discovery and verify the exact published package
+  - default validation uses ${publishedCliCommand}
+  - local CLI execution is opt-in only through --cli-dir or TIANGONG_LCA_CLI_DIR
+  - use --published-cli to override a local CLI environment and verify the exact published package
 `.trim(),
   );
 }
@@ -328,24 +323,6 @@ function run(command, args, options = {}) {
       result.stdout?.trim() ||
       `exit code ${result.status}`;
     fail(`${command} ${args.join(" ")} failed: ${stderr}`);
-  }
-}
-
-function ensureCliBuild(cliDir, required) {
-  if (!cliDir || !required) {
-    return;
-  }
-  const cliBin = path.join(cliDir, "bin", "tiangong-lca.js");
-  const cliDist = path.join(cliDir, "dist", "src", "main.js");
-  if (!existsSync(cliBin)) {
-    fail(
-      `Cannot find TianGong CLI at ${cliBin}. Set TIANGONG_LCA_CLI_DIR or pass --cli-dir.`,
-    );
-  }
-  if (!existsSync(cliDist)) {
-    fail(
-      `TianGong CLI is missing built artifacts at ${cliDist}. Run pnpm install --frozen-lockfile && pnpm run build in tiangong-lca-cli first.`,
-    );
   }
 }
 
@@ -375,10 +352,6 @@ function collectWrapperScripts(skillDir) {
     .filter((entry) => entry.endsWith(".mjs"))
     .sort()
     .map((entry) => path.join(scriptsDir, entry));
-}
-
-function scriptUsesCliLauncher(scriptFile) {
-  return readFileSync(scriptFile, "utf8").includes("cli-launcher.mjs");
 }
 
 function assertSkillFrontmatter(skillDir) {
@@ -547,18 +520,6 @@ function main() {
     skillDir,
     scriptFiles: collectWrapperScripts(skillDir),
   }));
-  const needsCliRuntime =
-    skillPlans.some(({ scriptFiles }) =>
-      scriptFiles.some((scriptFile) => scriptUsesCliLauncher(scriptFile)),
-    ) ||
-    targetedSmokeChecks.some((check) =>
-      skillPlans.some(
-        ({ skillDir }) => path.basename(skillDir) === check.skill,
-      ),
-    );
-
-  ensureCliBuild(cliDir, needsCliRuntime);
-
   let scriptCount = 0;
   skillPlans.forEach(({ skillDir, scriptFiles }) => {
     assertSkillFrontmatter(skillDir);
