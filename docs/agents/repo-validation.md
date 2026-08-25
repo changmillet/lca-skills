@@ -60,6 +60,7 @@ You may pass one or more skill directories to validate only the touched skill pa
 - Validation-script or test changes require running the full `pnpm prepush:gate` command when feasible.
 - New CLI-backed skills must be added to the default validation list when they are intended to ship as part of the standard checked-in skill set.
 - Wrapper-launcher changes require `pnpm test:launcher`, the pnpm consumer contract tests, an exact published `@tiangong-lca/cli@0.1.1` help case, and full skill validation against a frozen, built CLI `0.1.1` checkout.
+- Launcher filesystem fixtures and expected paths must use the host `node:path` implementation. A test that passes a synthetic `platform` may validate executable dispatch, but must not combine that target platform with host-resolved fake paths.
 - Repo-wide Markdown guards inventory only root-repository Git-tracked `*.md` paths through argv-based `git -C <root> ls-files -z`. Fixture and validator Git children remove inherited repository-location `GIT_*` variables first, so hook context cannot redirect their index or worktree; untracked or nested CI checkouts are not part of the Skills documentation contract.
 - Documentation-governance changes require docpact validation.
 
