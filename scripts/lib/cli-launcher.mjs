@@ -1,12 +1,18 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-export const publishedCliPackageSpec = '@tiangong-lca/cli@latest';
-export const publishedCliCommand = `npm exec --yes --package=${publishedCliPackageSpec} -- tiangong-lca`;
+export const expectedNodeVersion = '24.19.0';
+export const expectedPnpmVersion = '11.23.0';
+export const publishedCliPackageSpec = '@tiangong-lca/cli@0.1.1';
+export const publishedCliCommand = `pnpm dlx --package=${publishedCliPackageSpec} tiangong-lca`;
 
+const expectedCliPackageName = '@tiangong-lca/cli';
+const expectedCliPackageVersion = '0.1.1';
+const expectedCliPackageManager = `pnpm@${expectedPnpmVersion}`;
+const expectedCliNodeEngine = '>=24.19.0 <25';
 const launcherDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultSkillsRepoRoot = path.resolve(launcherDir, '..', '..');
 
@@ -15,8 +21,8 @@ function normalizeCliDir(cliDir) {
   return trimmed ? path.resolve(trimmed) : null;
 }
 
-function resolveNpmCommand() {
-  return process.platform === 'win32' ? 'npm.cmd' : 'npm';
+function resolvePnpmCommand(platform = process.platform) {
+  return platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 }
 
 export function defaultLocalCliDirCandidates(repoRoot = defaultSkillsRepoRoot) {
@@ -29,25 +35,6 @@ export function resolveDefaultLocalCliDir(options = {}) {
   const repoRoot = options.repoRoot ?? defaultSkillsRepoRoot;
   const pathExists = options.pathExists ?? existsSync;
   return defaultLocalCliDirCandidates(repoRoot).find((candidate) => pathExists(candidate)) ?? null;
-}
-
-function isHelpInvocation(tiangongArgs) {
-  return tiangongArgs.includes('--help') || tiangongArgs.includes('-h');
-}
-
-function buildPublishedFailureDiagnostic(invocation, tiangongArgs, result) {
-  const status =
-    typeof result.status === 'number' ? `exit code ${result.status}` : result.signal ?? 'unknown status';
-  const summary = isHelpInvocation(tiangongArgs)
-    ? `Published TianGong CLI invocation returned ${status} without any help output.`
-    : `Published TianGong CLI invocation returned ${status} without any stdout/stderr output.`;
-
-  return [
-    summary,
-    `Command: ${renderShellCommand(invocation.command, invocation.args)}`,
-    `Local CLI auto-discovery checked: ${invocation.searchedCliDirs.join(', ')}`,
-    'Use --cli-dir /path/to/tiangong-lca-cli or set TIANGONG_LCA_CLI_DIR to force a local working tree.',
-  ].join('\n');
 }
 
 export function normalizeCliRuntimeArgs(rawArgs, options = {}) {
@@ -87,6 +74,67 @@ export function normalizeCliRuntimeArgs(rawArgs, options = {}) {
   };
 }
 
+function readLocalCliPackageEvidence(cliDir, options) {
+  const pathExists = options.pathExists ?? existsSync;
+  const readText = options.readText ?? ((filePath) => readFileSync(filePath, 'utf8'));
+  const packageManifestPath = path.join(cliDir, 'package.json');
+  const lockfilePath = path.join(cliDir, 'pnpm-lock.yaml');
+
+  if (!pathExists(packageManifestPath)) {
+    throw new Error(`Local TianGong CLI requires package.json: ${packageManifestPath}`);
+  }
+  if (!pathExists(lockfilePath)) {
+    throw new Error(`Local TianGong CLI requires pnpm-lock.yaml: ${lockfilePath}`);
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(readText(packageManifestPath));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Cannot parse local TianGong CLI package.json: ${detail}`);
+  }
+
+  if (
+    !manifest ||
+    typeof manifest !== 'object' ||
+    manifest.name !== expectedCliPackageName ||
+    manifest.version !== expectedCliPackageVersion
+  ) {
+    throw new Error(
+      `Local TianGong CLI package mismatch: expected ${publishedCliPackageSpec}.`,
+    );
+  }
+  if (manifest.packageManager !== expectedCliPackageManager) {
+    throw new Error(
+      `Local TianGong CLI packageManager mismatch: expected ${expectedCliPackageManager}.`,
+    );
+  }
+  if (
+    !manifest.engines ||
+    manifest.engines.node !== expectedCliNodeEngine ||
+    manifest.engines.pnpm !== expectedPnpmVersion
+  ) {
+    throw new Error(
+      `Local TianGong CLI engine mismatch: expected Node ${expectedCliNodeEngine} and pnpm ${expectedPnpmVersion}.`,
+    );
+  }
+
+  const lockfile = readText(lockfilePath);
+  if (
+    !/^lockfileVersion:\s*['"]?9\.0['"]?\s*$/mu.test(lockfile) ||
+    !/^importers:\s*$/mu.test(lockfile)
+  ) {
+    throw new Error(`Local TianGong CLI pnpm lockfile is not a supported frozen v9 lock: ${lockfilePath}`);
+  }
+
+  return {
+    packageManifestPath,
+    lockfilePath,
+    packageVersion: manifest.version,
+  };
+}
+
 export function buildTiangongInvocation(tiangongArgs, options = {}) {
   const pathExists = options.pathExists ?? existsSync;
   const searchedCliDirs = defaultLocalCliDirCandidates(options.repoRoot);
@@ -104,6 +152,7 @@ export function buildTiangongInvocation(tiangongArgs, options = {}) {
         `Cannot find TianGong CLI at ${cliBin}. Set TIANGONG_LCA_CLI_DIR or pass --cli-dir.`,
       );
     }
+    const packageEvidence = readLocalCliPackageEvidence(cliDir, options);
 
     return {
       mode: 'local',
@@ -111,13 +160,15 @@ export function buildTiangongInvocation(tiangongArgs, options = {}) {
       args: [cliBin, ...tiangongArgs],
       cliDir,
       cliBin,
+      ...packageEvidence,
     };
   }
 
   return {
     mode: 'published',
-    command: resolveNpmCommand(),
-    args: ['exec', '--yes', `--package=${publishedCliPackageSpec}`, '--', 'tiangong-lca', ...tiangongArgs],
+    command: resolvePnpmCommand(options.platform),
+    args: ['dlx', `--package=${publishedCliPackageSpec}`, 'tiangong-lca', ...tiangongArgs],
+    packageSpec: publishedCliPackageSpec,
     searchedCliDirs,
   };
 }
@@ -150,7 +201,8 @@ function localCliNeedsBuild(invocation, options) {
   const pathExists = options.pathExists ?? existsSync;
   const statPath = options.statPath ?? statSync;
   const entryPath = path.join(invocation.cliDir, 'dist', 'src', 'main.js');
-  if (!pathExists(entryPath)) {
+  const modulesStatePath = path.join(invocation.cliDir, 'node_modules', '.modules.yaml');
+  if (!pathExists(entryPath) || !pathExists(modulesStatePath)) {
     return true;
   }
 
@@ -158,7 +210,8 @@ function localCliNeedsBuild(invocation, options) {
   const sourcePaths = [
     path.join(invocation.cliDir, 'src'),
     invocation.cliBin,
-    path.join(invocation.cliDir, 'package.json'),
+    invocation.packageManifestPath,
+    invocation.lockfilePath,
     path.join(invocation.cliDir, 'tsconfig.build.json'),
   ];
 
@@ -166,6 +219,51 @@ function localCliNeedsBuild(invocation, options) {
     const sourceMtime = newestMtimeMs(sourcePath, options);
     return typeof sourceMtime === 'number' && sourceMtime > builtAt;
   });
+}
+
+function assertToolchain(options) {
+  const nodeVersion = String(options.nodeVersion ?? process.versions.node).replace(/^v/u, '');
+  if (nodeVersion !== expectedNodeVersion) {
+    throw new Error(`Node ${expectedNodeVersion} is required; received ${nodeVersion}.`);
+  }
+
+  const pnpmCommand = resolvePnpmCommand(options.platform);
+  const spawnImpl = options.toolchainSpawnImpl ?? spawnSync;
+  const result = spawnImpl(pnpmCommand, ['--version'], {
+    stdio: 'pipe',
+    encoding: 'utf8',
+    shell: false,
+  });
+  if (result.error) {
+    throw new Error(`Failed to verify pnpm ${expectedPnpmVersion}: ${result.error.message}`);
+  }
+  const actualPnpmVersion = result.stdout?.trim();
+  if (result.status !== 0 || actualPnpmVersion !== expectedPnpmVersion) {
+    throw new Error(
+      `pnpm ${expectedPnpmVersion} is required; received ${actualPnpmVersion || 'unavailable'}.`,
+    );
+  }
+
+  return pnpmCommand;
+}
+
+function runLocalPreparationStep(invocation, args, label, options) {
+  const spawnImpl = options.buildSpawnImpl ?? spawnSync;
+  const result = spawnImpl(resolvePnpmCommand(options.platform), args, {
+    cwd: invocation.cliDir,
+    stdio: 'pipe',
+    encoding: 'utf8',
+    shell: false,
+  });
+  if (result.error) {
+    throw new Error(`Failed to ${label} local TianGong CLI: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const detail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+    throw new Error(
+      `Local TianGong CLI ${label} failed with exit code ${result.status}.${detail ? `\n${detail}` : ''}`,
+    );
+  }
 }
 
 function ensureLocalCliBuild(invocation, options) {
@@ -176,49 +274,51 @@ function ensureLocalCliBuild(invocation, options) {
     return;
   }
 
-  const spawnImpl = options.buildSpawnImpl ?? spawnSync;
-  const result = spawnImpl(resolveNpmCommand(), ['run', 'build'], {
-    cwd: invocation.cliDir,
-    stdio: 'pipe',
-    encoding: 'utf8',
-  });
-  if (result.error) {
-    throw new Error(`Failed to build local TianGong CLI: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    const detail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-    throw new Error(
-      `Local TianGong CLI build failed with exit code ${result.status}.${detail ? `\n${detail}` : ''}`,
-    );
-  }
+  runLocalPreparationStep(
+    invocation,
+    ['install', '--frozen-lockfile'],
+    'frozen install',
+    options,
+  );
+  runLocalPreparationStep(invocation, ['run', 'build'], 'build', options);
 }
 
-export function runTiangongCommand(tiangongArgs, options = {}) {
-  const spawnImpl = options.spawnImpl ?? spawnSync;
-  const stdoutWrite = options.stdoutWrite ?? ((text) => process.stdout.write(text));
-  const stderrWrite = options.stderrWrite ?? ((text) => process.stderr.write(text));
+export function executeTiangongCommand(tiangongArgs, options = {}) {
   const invocation = buildTiangongInvocation(tiangongArgs, options);
+  assertToolchain(options);
   ensureLocalCliBuild(invocation, options);
+
+  const spawnImpl = options.spawnImpl ?? spawnSync;
   const result = spawnImpl(invocation.command, invocation.args, {
+    ...options.spawnOptions,
     stdio: 'pipe',
     encoding: 'utf8',
-    ...options.spawnOptions,
+    shell: false,
   });
 
   if (result.error) {
     throw new Error(`Failed to execute TianGong CLI: ${result.error.message}`);
   }
 
+  return {
+    invocation,
+    status: result.status,
+    signal: result.signal,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+export function runTiangongCommand(tiangongArgs, options = {}) {
+  const stdoutWrite = options.stdoutWrite ?? ((text) => process.stdout.write(text));
+  const stderrWrite = options.stderrWrite ?? ((text) => process.stderr.write(text));
+  const result = executeTiangongCommand(tiangongArgs, options);
+
   if (result.stdout) {
     stdoutWrite(result.stdout);
   }
   if (result.stderr) {
     stderrWrite(result.stderr);
-  }
-
-  if (invocation.mode === 'published' && !result.stdout && !result.stderr) {
-    stderrWrite(`${buildPublishedFailureDiagnostic(invocation, tiangongArgs, result)}\n`);
-    return typeof result.status === 'number' && result.status !== 0 ? result.status : 1;
   }
   if (typeof result.status === 'number') {
     return result.status;
