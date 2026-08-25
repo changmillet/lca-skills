@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 
 export const expectedNodeVersion = '24.19.0';
 export const expectedPnpmVersion = '11.23.0';
@@ -14,8 +13,6 @@ const expectedCliPackageVersion = '0.1.1';
 const expectedCliPackageManager = `pnpm@${expectedPnpmVersion}`;
 const expectedCliNodeEngine = '>=24.19.0 <25';
 const verifiedToolchainsBySpawn = new WeakMap();
-const launcherDir = path.dirname(fileURLToPath(import.meta.url));
-const defaultSkillsRepoRoot = path.resolve(launcherDir, '..', '..');
 
 function normalizeCliDir(cliDir) {
   const trimmed = cliDir?.trim();
@@ -23,33 +20,15 @@ function normalizeCliDir(cliDir) {
 }
 
 function resolvePnpmCommand(platform = process.platform) {
-  return platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-}
-
-export function defaultLocalCliDirCandidates(repoRoot = defaultSkillsRepoRoot) {
-  return ['tiangong-lca-cli', 'tiangong-cli'].map((dirName) =>
-    path.join(path.dirname(repoRoot), dirName),
-  );
-}
-
-export function resolveDefaultLocalCliDir(options = {}) {
-  const repoRoot = options.repoRoot ?? defaultSkillsRepoRoot;
-  const pathExists = options.pathExists ?? existsSync;
-  return defaultLocalCliDirCandidates(repoRoot).find((candidate) => pathExists(candidate)) ?? null;
+  return platform === 'win32' ? 'pnpm.exe' : 'pnpm';
 }
 
 export function normalizeCliRuntimeArgs(rawArgs, options = {}) {
   const env = options.env ?? process.env;
-  const defaultCliDir =
-    normalizeCliDir(options.defaultCliDir) ??
-    resolveDefaultLocalCliDir({
-      repoRoot: options.repoRoot,
-      pathExists: options.pathExists,
-    });
   let cliDir =
     env.TIANGONG_LCA_CLI_MODE === 'published'
       ? null
-      : normalizeCliDir(env.TIANGONG_LCA_CLI_DIR) ?? defaultCliDir;
+      : normalizeCliDir(env.TIANGONG_LCA_CLI_DIR);
   const args = [];
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -146,13 +125,7 @@ function readLocalCliPackageEvidence(cliDir, options) {
 
 export function buildTiangongInvocation(tiangongArgs, options = {}) {
   const pathExists = options.pathExists ?? existsSync;
-  const searchedCliDirs = defaultLocalCliDirCandidates(options.repoRoot);
-  const cliDir = Object.prototype.hasOwnProperty.call(options, 'cliDir')
-    ? normalizeCliDir(options.cliDir)
-    : resolveDefaultLocalCliDir({
-        repoRoot: options.repoRoot,
-        pathExists,
-      });
+  const cliDir = normalizeCliDir(options.cliDir);
 
   if (cliDir) {
     const cliBin = path.join(cliDir, 'bin', 'tiangong-lca.js');
@@ -178,7 +151,6 @@ export function buildTiangongInvocation(tiangongArgs, options = {}) {
     command: resolvePnpmCommand(options.platform),
     args: ['dlx', `--package=${publishedCliPackageSpec}`, 'tiangong-lca', ...tiangongArgs],
     packageSpec: publishedCliPackageSpec,
-    searchedCliDirs,
   };
 }
 
