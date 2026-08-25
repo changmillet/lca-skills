@@ -225,7 +225,7 @@ const repoWideDocGuards = [
   {
     pattern: legacyPublishedCliInvocationPattern,
     message:
-      "Skill docs should use the canonical published CLI invocation from cli-launcher.mjs instead of the legacy npx shorthand.",
+      "Skill docs should use the pinned pnpm CLI invocation from cli-launcher.mjs instead of a floating or npm-based TianGong CLI fallback.",
   },
 ];
 
