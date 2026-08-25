@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   buildTiangongInvocation,
   expectedNodeVersion,
@@ -62,6 +64,14 @@ function passingToolchain() {
     },
   };
 }
+
+test('local CLI fixture declarations do not hard-code POSIX roots', () => {
+  const source = readFileSync(import.meta.filename, 'utf8');
+  assert.doesNotMatch(
+    source,
+    /(?:const cliDir = |'--cli-dir', )['"]\/(?:workspace|tmp)\//u,
+  );
+});
 
 test('normalizeCliRuntimeArgs defaults to the published CLI even when a sibling exists', () => {
   const { cliDir, args } = normalizeCliRuntimeArgs(['embedding-ft', '--help'], {
