@@ -305,6 +305,38 @@ test('runTiangongCommand caches one successful toolchain verification per proces
   assert.equal(dispatchCount, 2);
 });
 
+test('runTiangongCommand revalidates pnpm when the execution PATH changes', () => {
+  let verificationCount = 0;
+  const toolchainSpawnImpl = (_command, _args, options) => {
+    verificationCount += 1;
+    assert.match(options.env.PATH, /^\/toolchain\/(?:one|two)$/u);
+    return { status: 0, stdout: `${expectedPnpmVersion}\n`, stderr: '' };
+  };
+  const shared = {
+    repoRoot: '/workspace/skills',
+    pathExists: () => false,
+    nodeVersion: expectedNodeVersion,
+    toolchainSpawnImpl,
+    spawnImpl: () => ({ status: 0, stdout: '', stderr: '' }),
+  };
+
+  assert.equal(
+    runTiangongCommand(['--help'], {
+      ...shared,
+      spawnOptions: { env: { PATH: '/toolchain/one' } },
+    }),
+    0,
+  );
+  assert.equal(
+    runTiangongCommand(['--help'], {
+      ...shared,
+      spawnOptions: { env: { PATH: '/toolchain/two' } },
+    }),
+    0,
+  );
+  assert.equal(verificationCount, 2);
+});
+
 test('runTiangongCommand installs from the frozen local lockfile before rebuilding a stale CLI', () => {
   const cliDir = '/workspace/tiangong-lca-cli';
   const fixture = localCliFixture(cliDir);
