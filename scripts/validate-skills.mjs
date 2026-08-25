@@ -59,7 +59,8 @@ const historicalValidatePyCurrentPathPattern = new RegExp(
   String.raw`validate` + String.raw`\.py` + String.raw` checks`,
   "iu",
 );
-const legacyPublishedCliInvocationPattern = /npx -y @tiangong-lca\/cli@latest/u;
+const legacyPublishedCliInvocationPattern =
+  /@tiangong-lca\/cli@latest|npm exec[^\n]*@tiangong-lca\/cli/iu;
 
 const docGuards = [
   {
@@ -288,13 +289,13 @@ function parseArgs(rawArgs) {
 function printHelp() {
   console.log(
     `Usage:
-  node scripts/validate-skills.mjs [--cli-dir <dir>] [skill-path ...]
+  pnpm validate -- [--cli-dir <dir>] [skill-path ...]
 
 Examples:
-  node scripts/validate-skills.mjs
-  node scripts/validate-skills.mjs lifecycleinventory-qa process-hybrid-search
-  node scripts/validate-skills.mjs --cli-dir ../tiangong-lca-cli lifecycleinventory-review
-  node scripts/validate-skills.mjs --cli-dir ../tiangong-cli lifecycleinventory-review
+  pnpm validate
+  pnpm validate -- lifecycleinventory-qa process-hybrid-search
+  pnpm validate -- --cli-dir ../tiangong-lca-cli lifecycleinventory-review
+  pnpm validate -- --cli-dir ../tiangong-cli lifecycleinventory-review
 
 What this validates:
   - SKILL.md frontmatter presence
@@ -315,9 +316,10 @@ CLI runtime:
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
+    ...options,
     stdio: "pipe",
     encoding: "utf8",
-    ...options,
+    shell: false,
   });
 
   if (result.error) {
@@ -346,7 +348,7 @@ function ensureCliBuild(cliDir, required) {
   }
   if (!existsSync(cliDist)) {
     fail(
-      `TianGong CLI is missing built artifacts at ${cliDist}. Run npm run build in tiangong-lca-cli first.`,
+      `TianGong CLI is missing built artifacts at ${cliDist}. Run pnpm install --frozen-lockfile && pnpm run build in tiangong-lca-cli first.`,
     );
   }
 }

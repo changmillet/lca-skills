@@ -27,22 +27,41 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: tiangong-lca/tiangong-cli
+          ref: cli-v0.1.1
           path: .ci/tiangong-lca-cli
 
-      - name: Setup Node 24
+      - name: Setup pnpm 11.23.0
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.23.0
+          run_install: false
+
+      - name: Setup Node 24.19.0
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: .ci/tiangong-lca-cli/package-lock.json
+          node-version: '24.19.0'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            .ci/tiangong-lca-cli/pnpm-lock.yaml
+
+      - name: Install Skills validation package
+        run: pnpm install --frozen-lockfile
 
       - name: Install and build CLI
         working-directory: .ci/tiangong-lca-cli
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Test Skills repository contracts
+        run: pnpm test
+
+      - name: Validate exact published CLI fallback
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x64'
+        run: node process-hybrid-search/scripts/run-process-hybrid-search.mjs --help
 
       - name: Validate skills
         env:
           TIANGONG_LCA_CLI_DIR: ${{ github.workspace }}/.ci/tiangong-lca-cli
-        run: node scripts/validate-skills.mjs
+        run: pnpm validate
