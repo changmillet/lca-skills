@@ -18,6 +18,10 @@ checkPaths:
   - .docpact/config.yaml
   - .github/workflows/ai-doc-lint.yml
   - scripts/validate-skills.mjs
+  - scripts/check-toolchain.mjs
+  - scripts/lib/cli-launcher.mjs
+  - package.json
+  - pnpm-lock.yaml
   - test/**
   - "*/SKILL.md"
   - "*/agents/openai.yaml"
@@ -35,15 +39,16 @@ related:
 
 # skills Validation Guide
 
-The canonical local validation command is:
+Install and validate with the exact repository toolchain:
 
 ```bash
-node scripts/validate-skills.mjs
+pnpm install --frozen-lockfile
+pnpm prepush:gate
 ```
 
 Review note, 2026-06-04: external runtime source-evidence skill guidance remains documentation and instruction-layer work. The new top-level Foundry scenario skills are included in `scripts/validate-skills.mjs`; no new runtime validator path is required because the external Tiangong KB skill is not checked into this repository.
 
-The local `pre-push` hook runs docpact first, builds the sibling `tiangong-lca-cli` when available, and then runs this validation command. The GitHub `validate-skills` workflow is manual-dispatch only, so ordinary pushes rely on the local gate.
+The local `pre-push` hook runs docpact first, validates Node `24.19.0` / pnpm `11.23.0`, installs Skills and any selected local `tiangong-lca-cli` from frozen lockfiles, builds that CLI when available, and then runs the repository test/validation gate. The GitHub `validate-skills` workflow is manual-dispatch only, so ordinary pushes rely on the local gate.
 
 You may pass one or more skill directories to validate only the touched skill packages.
 
@@ -51,9 +56,9 @@ You may pass one or more skill directories to validate only the touched skill pa
 
 - Skill instruction changes require validating the touched skill package.
 - Wrapper contract changes require checking the paired `agents/openai.yaml` and `SKILL.md` together.
-- Validation-script or test changes require running the full `node scripts/validate-skills.mjs` command when feasible.
+- Validation-script or test changes require running the full `pnpm prepush:gate` command when feasible.
 - New CLI-backed skills must be added to the default validation list when they are intended to ship as part of the standard checked-in skill set.
-- Wrapper-launcher changes require the launcher unit tests plus full skill validation against a built current `tiangong-lca-cli` checkout.
+- Wrapper-launcher changes require `pnpm test:launcher`, the pnpm consumer contract tests, an exact published `@tiangong-lca/cli@0.1.1` help case, and full skill validation against a frozen, built CLI `0.1.1` checkout.
 - Documentation-governance changes require docpact validation.
 
 ## Docpact Validation
@@ -75,4 +80,4 @@ Install the versioned local hook once per checkout:
 ./scripts/install-git-hooks.sh
 ```
 
-The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It then builds the local sibling `tiangong-lca-cli` when available and runs `node scripts/validate-skills.mjs`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts.
+The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It then runs `pnpm check:toolchain`, installs Skills with `pnpm install --frozen-lockfile`, installs/builds a selected local CLI with frozen pnpm when available, and finishes with `pnpm prepush:gate`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts.

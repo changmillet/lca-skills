@@ -25,6 +25,10 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
+  - scripts/check-toolchain.mjs
+  - scripts/lib/cli-launcher.mjs
+  - package.json
+  - pnpm-lock.yaml
 lastReviewedAt: 2026-06-04
 lastReviewedCommit: 7c5039a212974a8e3c8392e31c18f72d0322dfe1
 related:
@@ -46,6 +50,8 @@ Review note, 2026-06-04: Foundry now has two checked-in top-level scenario skill
 - `*/agents/openai.yaml` contains wrapper contracts used by the skills CLI.
 - `*/scripts/**`, `*/references/**`, and `*/assets/**` are skill-local support files intentionally shipped with a skill package.
 - `scripts/validate-skills.mjs` and `test/**` define repo-level validation for wrappers and packaging rules.
+- `package.json` and `pnpm-lock.yaml` pin the validation-only Node `24.19.0` / pnpm `11.23.0` package contract; this does not turn the skill packages into a TypeScript runtime.
+- `scripts/lib/cli-launcher.mjs` owns exact local/published CLI selection, package evidence checks, frozen local preparation, and argv-only process dispatch.
 - `README.md` and `README.zh-CN.md` explain installation and usage.
 
 Top-level Foundry scenario skills are allowed in this repository when they only encode workflow order and routing:
@@ -66,7 +72,7 @@ If a Foundry/source-evidence workflow needs an external Tiangong KB research ski
 
 Current-account dataset review is owned here only as a skill package and wrapper contract. Its durable runtime behavior belongs in public `tiangong-lca` CLI commands such as dataset validation, reference rewriting, lifecyclemodel save-draft, and lifecyclemodel graph export.
 
-The shared wrapper launcher may prepare a local CLI checkout by running its build when source files are newer than `dist/src/main.js`. That is a developer-experience guard for stale local checkouts, not permission for skills to duplicate CLI implementation.
+The shared wrapper launcher accepts only the pinned `@tiangong-lca/cli@0.1.1` package contract. It may prepare a local CLI checkout with `pnpm install --frozen-lockfile` and `pnpm run build` when source files are newer than `dist/src/main.js`; otherwise it uses the exact published package through pnpm. All execution stays argv-authoritative with `shell: false`. This is a developer-experience guard for stale local checkouts, not permission for skills to duplicate CLI implementation.
 
 ## Integration Semantics
 
@@ -74,4 +80,4 @@ A merged PR in this repository is repo-complete only. If the updated skill set m
 
 ## Local Docpact Push Gate
 
-This repository has a versioned local `pre-push` hook under `.githooks/pre-push` that delegates to `scripts/docpact-gate.sh`, resolves the docpact CLI through `scripts/docpact`, builds the local sibling CLI when available, and runs `node scripts/validate-skills.mjs`. The hook is the local guard for docpact config validation, enforced doc-governance linting, and skill validation; the GitHub `validate-skills` workflow is manual-dispatch only.
+This repository has a versioned local `pre-push` hook under `.githooks/pre-push` that delegates to `scripts/docpact-gate.sh`, resolves the docpact CLI through `scripts/docpact`, installs Skills and any selected local CLI through frozen pnpm lockfiles, builds that CLI when available, and runs `pnpm prepush:gate`. The hook is the local guard for docpact config validation, enforced doc-governance linting, toolchain tests, and skill validation; the GitHub `validate-skills` workflow is manual-dispatch only.

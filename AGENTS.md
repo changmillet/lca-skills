@@ -26,6 +26,10 @@ checkPaths:
   - */references/**
   - */assets/**
   - scripts/validate-skills.mjs
+  - scripts/check-toolchain.mjs
+  - scripts/lib/cli-launcher.mjs
+  - package.json
+  - pnpm-lock.yaml
   - test/**
   - .github/workflows/**
   - .githooks/**
@@ -71,6 +75,7 @@ This repo owns:
 - `*/agents/openai.yaml` for the canonical CLI-backed wrapper contract
 - skill-local `scripts/**`, `references/**`, and `assets/**` when they are part of one skill package
 - `scripts/validate-skills.mjs` and repo validation tests
+- `package.json`, `pnpm-lock.yaml`, and the shared CLI launcher/toolchain checks used by repo validation
 - `README.md` and `README.zh-CN.md` for install and usage guidance
 
 This repo does not own:
@@ -96,8 +101,10 @@ Route those tasks to:
 - Source-evidence import skills may instruct agents to resolve external research skills with `npx skills`, but this repository should not mirror or pin those external skill packages.
 - `external-dataset-curated-import`, `source-evidence-dataset-development`, and `dataset-rls-maintenance` are top-level workflow skills only; executable conversion, queue state, validation, QA, write/delete/redo, and verify behavior stays in CLI/Foundry-owned commands.
 - Dataset maintenance under user RLS must use CLI-owned maintenance plans and readback verification. Skills must not add direct Supabase CRUD, service-role paths, or broad delete filters.
-- Local CLI checkouts selected by wrappers may be rebuilt automatically when their source is newer than `dist/src/main.js`; wrappers should still keep the CLI command surface in `tiangong-lca-cli`.
-- The canonical local validation command is `node scripts/validate-skills.mjs`
+- Node package execution is pinned to Node `24.19.0` and pnpm `11.23.0`; the exact published fallback is `@tiangong-lca/cli@0.1.1` and must never float through `@latest`.
+- Local CLI checkouts selected by wrappers must match the pinned CLI package/engine/lockfile evidence. When their source is newer than `dist/src/main.js`, wrappers install with `pnpm install --frozen-lockfile` before `pnpm run build`; wrappers should still keep the CLI command surface in `tiangong-lca-cli`.
+- CLI child processes use authoritative argv arrays with `shell: false` and preserve child exit/stdout/stderr.
+- The canonical local validation command is `pnpm validate` after `pnpm install --frozen-lockfile`.
 - You may pass one or more skill paths to validate only the touched skills
 - For documentation-governance changes, run `scripts/docpact validate-config --root . --strict` and `scripts/docpact lint --root . --base origin/main --head HEAD --mode enforce`
 
@@ -126,4 +133,4 @@ Install the versioned local hook once per checkout:
 ./scripts/install-git-hooks.sh
 ```
 
-The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It then builds the local sibling `tiangong-lca-cli` when available and runs `node scripts/validate-skills.mjs` as the local test gate. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts. The GitHub `validate-skills` workflow is manual-dispatch only.
+The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It validates Node `24.19.0` / pnpm `11.23.0`, installs Skills and any selected local CLI from frozen pnpm lockfiles, builds that CLI when present, and runs `pnpm prepush:gate`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts. The GitHub `validate-skills` workflow is manual-dispatch only.

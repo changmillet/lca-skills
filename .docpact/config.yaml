@@ -39,8 +39,13 @@ ownership:
     - id: validation-and-packaging
       paths:
         include:
+          - package.json
+          - pnpm-lock.yaml
+          - scripts/check-toolchain.mjs
+          - scripts/lib/cli-launcher.mjs
           - scripts/validate-skills.mjs
           - test/**
+          - .github/workflows/validate-skills.yml
       ownerRepo: skills
 
     - id: local-docpact-push-gate
@@ -58,6 +63,10 @@ coverage:
     - scripts/docpact
     - scripts/docpact-gate.sh
     - scripts/install-git-hooks.sh
+    - package.json
+    - pnpm-lock.yaml
+    - scripts/check-toolchain.mjs
+    - scripts/lib/cli-launcher.mjs
     - AGENTS.md
     - README.md
     - README.zh-CN.md
@@ -70,6 +79,7 @@ coverage:
     - "*/assets/**"
     - scripts/validate-skills.mjs
     - test/**
+    - .github/workflows/validate-skills.yml
     - .github/workflows/ai-doc-lint.yml
   exclude:
     - .git/**
@@ -106,8 +116,13 @@ routing:
         - current-account-dataset-review/scripts/**
     validation:
       paths:
+        - package.json
+        - pnpm-lock.yaml
+        - scripts/check-toolchain.mjs
+        - scripts/lib/cli-launcher.mjs
         - scripts/validate-skills.mjs
         - test/**
+        - .github/workflows/validate-skills.yml
     repo-docs:
       paths:
         - AGENTS.md
@@ -119,8 +134,13 @@ routing:
     proof:
       paths:
         - docs/agents/repo-validation.md
+        - package.json
+        - pnpm-lock.yaml
+        - scripts/check-toolchain.mjs
+        - scripts/lib/cli-launcher.mjs
         - scripts/validate-skills.mjs
         - test/**
+        - .github/workflows/validate-skills.yml
     root-integration:
       paths:
         - AGENTS.md
@@ -213,16 +233,28 @@ rules:
     scope: repo
     repo: skills
     triggers:
+      - path: package.json
+        kind: package-contract
+      - path: pnpm-lock.yaml
+        kind: frozen-lockfile
+      - path: scripts/check-toolchain.mjs
+        kind: toolchain-validation
+      - path: scripts/lib/cli-launcher.mjs
+        kind: cli-launcher
       - path: scripts/validate-skills.mjs
         kind: validation-script
       - path: test/**
         kind: repo-test
+      - path: .github/workflows/validate-skills.yml
+        kind: validation-automation
     requiredDocs:
       - path: AGENTS.md
         mode: review_or_update
       - path: .docpact/config.yaml
         mode: review_or_update
       - path: docs/agents/repo-validation.md
+        mode: review_or_update
+      - path: docs/agents/repo-architecture.md
         mode: review_or_update
     reason: Validation changes alter the minimum proof expected for future skill work.
   - id: skills-doc-governance-ci

@@ -1,7 +1,7 @@
 # Env (caller side)
 
 - CLI path override: `TIANGONG_LCA_CLI_DIR`
-- Default CLI runtime: `npm exec --yes --package=@tiangong-lca/cli@latest -- tiangong-lca`
+- Default CLI runtime: `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`
 - Auth variable: `TIANGONG_LCA_API_KEY`
 - Base URL variable: `TIANGONG_LCA_API_BASE_URL`
 - Region variable: `TIANGONG_LCA_REGION`

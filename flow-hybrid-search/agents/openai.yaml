@@ -1,4 +1,4 @@
 interface:
   display_name: "Flow Hybrid Search"
   short_description: "Debug and tune flow hybrid search requests"
-  default_prompt: "Use $flow-hybrid-search to validate a flow query request, filter, and response behavior."
+  default_prompt: "Use $flow-hybrid-search to validate a flow query request, filter, and response behavior through the pinned published CLI 0.1.1 via pnpm unless an exact local CLI override is explicitly selected."

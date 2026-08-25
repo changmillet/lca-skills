@@ -111,20 +111,24 @@ Consuming projects should record the resolved upstream ref and command in task a
 
 ## Validation
 
+- Repository validation requires Node `24.19.0` and pnpm `11.23.0`; install the pinned validation package from `pnpm-lock.yaml` first:
+  ```bash
+  pnpm install --frozen-lockfile
+  ```
 - Validate the canonical CLI-backed wrappers and migration doc guards locally:
   ```bash
-  node scripts/validate-skills.mjs
+  pnpm validate
   ```
 - Validate against an unpublished local CLI working tree:
   ```bash
   TIANGONG_LCA_CLI_DIR=/path/to/tiangong-lca-cli \
-  node scripts/validate-skills.mjs
+  pnpm validate
   ```
 - Validate only the skills you changed:
   ```bash
-  node scripts/validate-skills.mjs lifecycleinventory-qa process-hybrid-search
+  pnpm validate -- lifecycleinventory-qa process-hybrid-search
   ```
-- CI runs the same validation script in `.github/workflows/validate-skills.yml` after checking out and building `tiangong-lca-cli`.
+- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out `cli-v0.1.1`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
 
 ## Execution note
 
@@ -133,8 +137,10 @@ Skills in this repository are expected to be thin wrappers over the unified `tia
 Current rules:
 
 - wrappers auto-discover a local sibling CLI checkout first when `../tiangong-lca-cli` or `../tiangong-cli` exists
-- otherwise wrappers fall back to the published CLI through `npm exec --yes --package=@tiangong-lca/cli@latest -- tiangong-lca`
+- otherwise wrappers fall back to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`
 - use `--cli-dir` or `TIANGONG_LCA_CLI_DIR` to force a specific local CLI working tree during dev/CI
+- local CLI overrides must identify `@tiangong-lca/cli@0.1.1` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
+- launcher execution uses argv arrays with `shell: false`, so paths containing spaces remain one argument and child exit/stdout/stderr are preserved
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts
 - use native cross-platform Node `.mjs` wrappers as the canonical entrypoint
 - skill wrappers should not bundle business-specific Python runtimes, shell shims, MCP transports, or private env parsers
