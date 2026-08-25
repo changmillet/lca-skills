@@ -235,7 +235,17 @@ export function assertSupportedToolchain(options = {}) {
 
   const pnpmCommand = resolvePnpmCommand(options.platform);
   const spawnImpl = options.toolchainSpawnImpl ?? spawnSync;
-  const verificationKey = `${nodeVersion}\0${options.platform ?? process.platform}\0${pnpmCommand}`;
+  const executionEnv = options.spawnOptions?.env ?? process.env;
+  const envEntries = Object.entries(executionEnv);
+  const readEnv = (name) =>
+    envEntries.find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1] ?? '';
+  const verificationKey = [
+    nodeVersion,
+    options.platform ?? process.platform,
+    pnpmCommand,
+    readEnv('PATH'),
+    readEnv('PATHEXT'),
+  ].join('\0');
   const cacheEnabled = options.cacheToolchainVerification !== false;
   const cachedKeys = cacheEnabled ? verifiedToolchainsBySpawn.get(spawnImpl) : null;
   if (cachedKeys?.has(verificationKey)) {
@@ -243,6 +253,7 @@ export function assertSupportedToolchain(options = {}) {
   }
 
   const result = spawnImpl(pnpmCommand, ['--version'], {
+    env: executionEnv,
     stdio: 'pipe',
     encoding: 'utf8',
     shell: false,
@@ -270,6 +281,7 @@ function runLocalPreparationStep(invocation, args, label, options) {
   const spawnImpl = options.buildSpawnImpl ?? spawnSync;
   const result = spawnImpl(resolvePnpmCommand(options.platform), args, {
     cwd: invocation.cliDir,
+    env: options.spawnOptions?.env ?? process.env,
     stdio: 'pipe',
     encoding: 'utf8',
     shell: false,
