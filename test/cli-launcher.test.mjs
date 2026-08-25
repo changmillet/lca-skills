@@ -8,6 +8,7 @@ import {
   publishedCliCommand,
   publishedCliPackageSpec,
   runTiangongCommand,
+  withCliRuntimeEnv,
 } from '../scripts/lib/cli-launcher.mjs';
 
 const supportedCliPackage = {
@@ -104,6 +105,28 @@ test('normalizeCliRuntimeArgs can explicitly select the published CLI above sibl
     pathExists: () => true,
   });
   assert.equal(invocation.mode, 'published');
+});
+
+test('published CLI selection propagates through nested wrapper environments', () => {
+  const publishedEnv = withCliRuntimeEnv(
+    {
+      TIANGONG_LCA_CLI_DIR: '/workspace/old-cli',
+    },
+    null,
+  );
+  assert.equal(publishedEnv.TIANGONG_LCA_CLI_DIR, undefined);
+  assert.equal(publishedEnv.TIANGONG_LCA_CLI_MODE, 'published');
+
+  const publishedRuntime = normalizeCliRuntimeArgs(['qa', 'process'], {
+    env: publishedEnv,
+    repoRoot: '/workspace/skills',
+    pathExists: () => true,
+  });
+  assert.equal(publishedRuntime.cliDir, null);
+
+  const localEnv = withCliRuntimeEnv(publishedEnv, '/workspace/exact-cli');
+  assert.equal(localEnv.TIANGONG_LCA_CLI_DIR, '/workspace/exact-cli');
+  assert.equal(localEnv.TIANGONG_LCA_CLI_MODE, undefined);
 });
 
 test('buildTiangongInvocation uses exact pnpm dlx argv for the published CLI contract', () => {
