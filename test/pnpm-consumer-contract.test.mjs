@@ -14,6 +14,18 @@ import { fileURLToPath } from 'node:url';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(testDir, '..');
+const gitRepositoryLocationEnvNames = new Set([
+  'GIT_DIR',
+  'GIT_WORK_TREE',
+  'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY',
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_COMMON_DIR',
+  'GIT_CEILING_DIRECTORIES',
+  'GIT_PREFIX',
+  'GIT_NAMESPACE',
+  'GIT_QUARANTINE_PATH',
+]);
 
 function read(relativePath) {
   return readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -38,6 +50,92 @@ function runGit(cwd, args) {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   return result;
 }
+
+function sanitizedGitEnv(baseEnv = process.env) {
+  return Object.fromEntries(
+    Object.entries(baseEnv).filter(
+      ([name]) => !gitRepositoryLocationEnvNames.has(name.toUpperCase()),
+    ),
+  );
+}
+
+function runBootstrapGit(cwd, args) {
+  const result = spawnSync('git', args, {
+    cwd,
+    env: sanitizedGitEnv(),
+    encoding: 'utf8',
+    stdio: 'pipe',
+    shell: false,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result;
+}
+
+test('hook-like Git environment cannot redirect fixture operations into the parent index', () => {
+  const sandboxRoot = mkdtempSync(path.join(tmpdir(), 'skills-git-env-isolation-'));
+  const parentRoot = path.join(sandboxRoot, 'parent');
+  const fixtureRoot = path.join(sandboxRoot, 'fixture');
+  const alternateObjects = path.join(sandboxRoot, 'alternate-objects');
+  const inheritedValues = new Map();
+
+  try {
+    mkdirSync(parentRoot, { recursive: true });
+    mkdirSync(fixtureRoot, { recursive: true });
+    mkdirSync(alternateObjects, { recursive: true });
+    runBootstrapGit(parentRoot, ['init', '--quiet']);
+    writeFileSync(path.join(parentRoot, 'README.md'), '# parent original\n', 'utf8');
+    runBootstrapGit(parentRoot, ['add', '--', 'README.md']);
+    const parentTreeBefore = runBootstrapGit(parentRoot, ['write-tree']).stdout.trim();
+    const parentWorktreeBefore = readFileSync(path.join(parentRoot, 'README.md'), 'utf8');
+
+    runBootstrapGit(fixtureRoot, ['init', '--quiet']);
+    writeFileSync(path.join(fixtureRoot, 'README.md'), '# isolated fixture\n', 'utf8');
+
+    const inheritedGitEnvironment = {
+      GIT_DIR: path.join(parentRoot, '.git'),
+      GIT_WORK_TREE: fixtureRoot,
+      GIT_INDEX_FILE: path.join(parentRoot, '.git', 'index'),
+      GIT_OBJECT_DIRECTORY: path.join(parentRoot, '.git', 'objects'),
+      GIT_ALTERNATE_OBJECT_DIRECTORIES: alternateObjects,
+      GIT_COMMON_DIR: path.join(parentRoot, '.git'),
+      GIT_CEILING_DIRECTORIES: sandboxRoot,
+    };
+    for (const [name, value] of Object.entries(inheritedGitEnvironment)) {
+      inheritedValues.set(name, {
+        existed: Object.prototype.hasOwnProperty.call(process.env, name),
+        value: process.env[name],
+      });
+      process.env[name] = value;
+    }
+
+    runGit(fixtureRoot, ['add', '--', 'README.md']);
+
+    for (const [name, previous] of inheritedValues) {
+      if (previous.existed) {
+        process.env[name] = previous.value;
+      } else {
+        delete process.env[name];
+      }
+    }
+    inheritedValues.clear();
+
+    assert.equal(
+      runBootstrapGit(parentRoot, ['write-tree']).stdout.trim(),
+      parentTreeBefore,
+    );
+    assert.equal(readFileSync(path.join(parentRoot, 'README.md'), 'utf8'), parentWorktreeBefore);
+  } finally {
+    for (const [name, previous] of inheritedValues) {
+      if (previous.existed) {
+        process.env[name] = previous.value;
+      } else {
+        delete process.env[name];
+      }
+    }
+    rmSync(sandboxRoot, { recursive: true, force: true });
+  }
+});
 
 test('markdown inventory excludes untracked nested repositories under .ci', () => {
   const fixtureRoot = mkdtempSync(path.join(tmpdir(), 'skills-markdown-inventory-'));
