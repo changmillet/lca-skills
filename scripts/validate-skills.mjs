@@ -5,15 +5,26 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
-  defaultLocalCliDirCandidates,
   normalizeCliRuntimeArgs,
   publishedCliCommand,
   withCliRuntimeEnv,
 } from "./lib/cli-launcher.mjs";
+import { flowGovernanceCliCommandEntries } from "../flow-governance-review/scripts/lib/cli-command-manifest.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
-const localCliDirCandidates = defaultLocalCliDirCandidates(repoRoot);
+const gitRepositoryLocationEnvNames = new Set([
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_COMMON_DIR",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_PREFIX",
+  "GIT_NAMESPACE",
+  "GIT_QUARANTINE_PATH",
+]);
 
 const defaultSkillNames = [
   "process-hybrid-search",
@@ -59,7 +70,8 @@ const historicalValidatePyCurrentPathPattern = new RegExp(
   String.raw`validate` + String.raw`\.py` + String.raw` checks`,
   "iu",
 );
-const legacyPublishedCliInvocationPattern = /npx -y @tiangong-lca\/cli@latest/u;
+const legacyPublishedCliInvocationPattern =
+  /@tiangong-lca\/cli@latest|npm exec[^\n]*@tiangong-lca\/cli|npx[^\n]*@tiangong-lca\/cli/iu;
 
 const docGuards = [
   {
@@ -223,23 +235,17 @@ const repoWideDocGuards = [
   {
     pattern: legacyPublishedCliInvocationPattern,
     message:
-      "Skill docs should use the canonical published CLI invocation from cli-launcher.mjs instead of the legacy npx shorthand.",
+      "Skill docs should use the pinned pnpm CLI invocation from cli-launcher.mjs instead of a floating or npm-based TianGong CLI fallback.",
   },
 ];
 
 const targetedSmokeChecks = [
-  {
+  ...flowGovernanceCliCommandEntries.map(({ wrapperCommand }) => ({
     skill: "flow-governance-review",
     script: "flow-governance-review/scripts/run-flow-governance-review.mjs",
-    args: ["materialize-db-flows", "--help"],
-    description: "flow-governance-review materialize-db-flows help",
-  },
-  {
-    skill: "flow-governance-review",
-    script: "flow-governance-review/scripts/run-flow-governance-review.mjs",
-    args: ["materialize-approved-decisions", "--help"],
-    description: "flow-governance-review materialize-approved-decisions help",
-  },
+    args: [wrapperCommand, "--help"],
+    description: `flow-governance-review ${wrapperCommand} manifest help`,
+  })),
   {
     skill: "flow-governance-review",
     script:
@@ -288,13 +294,13 @@ function parseArgs(rawArgs) {
 function printHelp() {
   console.log(
     `Usage:
-  node scripts/validate-skills.mjs [--cli-dir <dir>] [skill-path ...]
+  pnpm validate [--cli-dir <dir> | --published-cli] [skill-path ...]
 
 Examples:
-  node scripts/validate-skills.mjs
-  node scripts/validate-skills.mjs lifecycleinventory-qa process-hybrid-search
-  node scripts/validate-skills.mjs --cli-dir ../tiangong-lca-cli lifecycleinventory-review
-  node scripts/validate-skills.mjs --cli-dir ../tiangong-cli lifecycleinventory-review
+  pnpm validate
+  pnpm validate lifecycleinventory-qa process-hybrid-search
+  pnpm validate --cli-dir ../tiangong-lca-cli lifecycleinventory-review
+  pnpm validate --cli-dir ../tiangong-cli lifecycleinventory-review
 
 What this validates:
   - SKILL.md frontmatter presence
@@ -304,20 +310,19 @@ What this validates:
   - targeted doc guards that prevent stale shell/Python migration wording
 
 CLI runtime:
-  - default local repo validation uses the first sibling repo that exists:
-    - ../tiangong-lca-cli
-    - ../tiangong-cli
-  - otherwise wrappers fall back to ${publishedCliCommand}
-  - use --cli-dir or TIANGONG_LCA_CLI_DIR to force a local working tree
+  - default validation uses ${publishedCliCommand}
+  - local CLI execution is opt-in only through --cli-dir or TIANGONG_LCA_CLI_DIR
+  - use --published-cli to override a local CLI environment and verify the exact published package
 `.trim(),
   );
 }
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
+    ...options,
     stdio: "pipe",
     encoding: "utf8",
-    ...options,
+    shell: false,
   });
 
   if (result.error) {
@@ -330,24 +335,6 @@ function run(command, args, options = {}) {
       result.stdout?.trim() ||
       `exit code ${result.status}`;
     fail(`${command} ${args.join(" ")} failed: ${stderr}`);
-  }
-}
-
-function ensureCliBuild(cliDir, required) {
-  if (!cliDir || !required) {
-    return;
-  }
-  const cliBin = path.join(cliDir, "bin", "tiangong-lca.js");
-  const cliDist = path.join(cliDir, "dist", "src", "main.js");
-  if (!existsSync(cliBin)) {
-    fail(
-      `Cannot find TianGong CLI at ${cliBin}. Set TIANGONG_LCA_CLI_DIR or pass --cli-dir.`,
-    );
-  }
-  if (!existsSync(cliDist)) {
-    fail(
-      `TianGong CLI is missing built artifacts at ${cliDist}. Run npm run build in tiangong-lca-cli first.`,
-    );
   }
 }
 
@@ -377,10 +364,6 @@ function collectWrapperScripts(skillDir) {
     .filter((entry) => entry.endsWith(".mjs"))
     .sort()
     .map((entry) => path.join(scriptsDir, entry));
-}
-
-function scriptUsesCliLauncher(scriptFile) {
-  return readFileSync(scriptFile, "utf8").includes("cli-launcher.mjs");
 }
 
 function assertSkillFrontmatter(skillDir) {
@@ -501,26 +484,30 @@ function runRequiredDocPatterns() {
 }
 
 function collectRepoDocFiles(rootDir) {
-  const entries = readdirSync(rootDir, { withFileTypes: true });
-  const files = [];
-
-  entries.forEach((entry) => {
-    if (entry.name === ".git" || entry.name === "node_modules") {
-      return;
-    }
-
-    const fullPath = path.join(rootDir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...collectRepoDocFiles(fullPath));
-      return;
-    }
-
-    if (entry.isFile() && entry.name.endsWith(".md")) {
-      files.push(fullPath);
-    }
+  const sanitizedEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !gitRepositoryLocationEnvNames.has(name.toUpperCase()),
+    ),
+  );
+  const result = spawnSync("git", ["-C", rootDir, "ls-files", "-z", "--", "*.md"], {
+    cwd: rootDir,
+    env: sanitizedEnv,
+    stdio: "pipe",
+    encoding: "utf8",
+    shell: false,
   });
+  if (result.error) {
+    fail(`Cannot inventory root Git-tracked Markdown: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr?.trim() || result.stdout?.trim() || `exit code ${result.status}`;
+    fail(`Cannot inventory root Git-tracked Markdown: ${detail}`);
+  }
 
-  return files;
+  return result.stdout
+    .split("\0")
+    .filter(Boolean)
+    .map((relativePath) => path.join(rootDir, relativePath));
 }
 
 function runRepoWideDocGuards() {
@@ -549,18 +536,6 @@ function main() {
     skillDir,
     scriptFiles: collectWrapperScripts(skillDir),
   }));
-  const needsCliRuntime =
-    skillPlans.some(({ scriptFiles }) =>
-      scriptFiles.some((scriptFile) => scriptUsesCliLauncher(scriptFile)),
-    ) ||
-    targetedSmokeChecks.some((check) =>
-      skillPlans.some(
-        ({ skillDir }) => path.basename(skillDir) === check.skill,
-      ),
-    );
-
-  ensureCliBuild(cliDir, needsCliRuntime);
-
   let scriptCount = 0;
   skillPlans.forEach(({ skillDir, scriptFiles }) => {
     assertSkillFrontmatter(skillDir);

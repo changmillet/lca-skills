@@ -18,8 +18,8 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-06-04
-lastReviewedCommit: 83749eb1836f7d64a4cf59c21d46200baefbae7c
+lastReviewedAt: 2026-08-25
+lastReviewedCommit: 9f77978b1cc6a7e28ed4f6d755307b8d55e3f18d
 ---
 
 # 天工 LCA Skills
@@ -111,20 +111,24 @@ npx skills update --project --yes
 
 ## 校验
 
+- 仓库校验固定使用 Node `24.19.0` 与 pnpm `11.23.0`；先从 `pnpm-lock.yaml` 安装校验包：
+  ```bash
+  pnpm install --frozen-lockfile
+  ```
 - 本地校验 CLI-backed wrapper 与迁移文档守卫:
   ```bash
-  node scripts/validate-skills.mjs
+  pnpm validate
   ```
 - 若要联调未发布的本地 CLI working tree:
   ```bash
   TIANGONG_LCA_CLI_DIR=/path/to/tiangong-lca-cli \
-  node scripts/validate-skills.mjs
+  pnpm validate
   ```
 - 只校验本次变更的 skill:
   ```bash
-  node scripts/validate-skills.mjs lifecycleinventory-qa process-hybrid-search
+  pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout 并构建 `tiangong-lca-cli`，然后运行同一套校验脚本。
+- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.1` 的不可变 merge commit `be8d042b8ed3f961038bf870388a46388478e9a7`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
 
 ## 执行说明
 
@@ -132,9 +136,12 @@ npx skills update --project --yes
 
 当前约定：
 
-- skill wrapper 会优先自动发现本地 sibling CLI checkout：`../tiangong-lca-cli` 或 `../tiangong-cli`
-- 如果没有可用的本地 sibling checkout，则回退到已发布 CLI：`npm exec --yes --package=@tiangong-lca/cli@latest -- tiangong-lca`
-- 在本地开发或 CI 联调时，也可以使用 `--cli-dir` / `TIANGONG_LCA_CLI_DIR` 强制指向特定的本地 CLI working tree
+- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`；不会自动发现任何 sibling 目录
+- 本地执行只能通过 `--cli-dir` / `TIANGONG_LCA_CLI_DIR` 显式启用
+- 使用 `--published-cli` 可覆盖本地 CLI 环境并显式执行 published-package case；嵌套 wrapper 会继续传播该选择
+- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.1`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
+- 本地 pre-push hook 会先验证显式 local checkout 的 package/lock evidence，再允许 install 或 build
+- launcher 只用 argv 数组并固定 `shell: false`，因此带空格路径保持为单个参数，并原样保留子进程 exit/stdout/stderr
 - 对远端 process QA snapshot，优先使用 `tiangong-lca process list --json` 再配合 `qa process --rows-file ...`，不再鼓励临时 bridge 脚本
 - 对新迁移和后续重构的 skill，wrapper 入口优先直接使用原生 Node `.mjs`，不再新增 shell 兼容壳
 - skill wrapper 不应再打包业务 Python、MCP transport、私有 env parsing 或 shell shim

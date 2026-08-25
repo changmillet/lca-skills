@@ -8,7 +8,7 @@ Prefer local JSON or JSONL inputs. In local mode, no remote credentials are requ
 
 ## Wrapper Resolution
 
-Wrappers run the published CLI by default through `npm exec --yes --package=@tiangong-lca/cli@latest -- tiangong-lca`.
+Wrappers run the exact published CLI by default through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`.
 
 Set `TIANGONG_LCA_CLI_DIR` or pass `--cli-dir` only when you need a local CLI working tree for dev/CI.
 

@@ -18,8 +18,8 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-06-04
-lastReviewedCommit: 83749eb1836f7d64a4cf59c21d46200baefbae7c
+lastReviewedAt: 2026-08-25
+lastReviewedCommit: 9f77978b1cc6a7e28ed4f6d755307b8d55e3f18d
 ---
 
 # Tiangong LCA Skills
@@ -111,20 +111,24 @@ Consuming projects should record the resolved upstream ref and command in task a
 
 ## Validation
 
+- Repository validation requires Node `24.19.0` and pnpm `11.23.0`; install the pinned validation package from `pnpm-lock.yaml` first:
+  ```bash
+  pnpm install --frozen-lockfile
+  ```
 - Validate the canonical CLI-backed wrappers and migration doc guards locally:
   ```bash
-  node scripts/validate-skills.mjs
+  pnpm validate
   ```
 - Validate against an unpublished local CLI working tree:
   ```bash
   TIANGONG_LCA_CLI_DIR=/path/to/tiangong-lca-cli \
-  node scripts/validate-skills.mjs
+  pnpm validate
   ```
 - Validate only the skills you changed:
   ```bash
-  node scripts/validate-skills.mjs lifecycleinventory-qa process-hybrid-search
+  pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI runs the same validation script in `.github/workflows/validate-skills.yml` after checking out and building `tiangong-lca-cli`.
+- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out the immutable CLI `0.1.1` merge commit `be8d042b8ed3f961038bf870388a46388478e9a7`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
 
 ## Execution note
 
@@ -132,9 +136,12 @@ Skills in this repository are expected to be thin wrappers over the unified `tia
 
 Current rules:
 
-- wrappers auto-discover a local sibling CLI checkout first when `../tiangong-lca-cli` or `../tiangong-cli` exists
-- otherwise wrappers fall back to the published CLI through `npm exec --yes --package=@tiangong-lca/cli@latest -- tiangong-lca`
-- use `--cli-dir` or `TIANGONG_LCA_CLI_DIR` to force a specific local CLI working tree during dev/CI
+- wrappers default to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`; sibling directories are never auto-discovered
+- local execution is opt-in only through `--cli-dir` or `TIANGONG_LCA_CLI_DIR`
+- use `--published-cli` to override a local CLI environment for an explicit published-package case; nested wrappers propagate that selection
+- local CLI overrides must identify `@tiangong-lca/cli@0.1.1` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
+- the local pre-push hook validates CLI package and lock evidence before it installs or builds an explicitly selected local checkout
+- launcher execution uses argv arrays with `shell: false`, so paths containing spaces remain one argument and child exit/stdout/stderr are preserved
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts
 - use native cross-platform Node `.mjs` wrappers as the canonical entrypoint
 - skill wrappers should not bundle business-specific Python runtimes, shell shims, MCP transports, or private env parsers

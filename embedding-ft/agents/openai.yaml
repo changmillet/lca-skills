@@ -1,4 +1,4 @@
 interface:
   display_name: "Embedding FT Worker"
   short_description: "Debug and run embedding worker jobs"
-  default_prompt: "Use $embedding-ft to validate an embedding job payload and run a remote smoke test."
+  default_prompt: "Use $embedding-ft to validate an embedding job payload and run a remote smoke test through the pinned published CLI 0.1.1 via pnpm unless an exact local CLI override is explicitly selected."

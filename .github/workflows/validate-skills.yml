@@ -21,28 +21,39 @@ jobs:
             arch: arm64
     steps:
       - name: Checkout skills
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Checkout tiangong-lca-cli
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: tiangong-lca/tiangong-cli
+          ref: be8d042b8ed3f961038bf870388a46388478e9a7
           path: .ci/tiangong-lca-cli
 
-      - name: Setup Node 24
-        uses: actions/setup-node@v6
+      - name: Set up pnpm 11.23.0 and Node 24.19.0
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: .ci/tiangong-lca-cli/package-lock.json
+          runtime: node@24.19.0
+          install: false
+          cache: true
+
+      - name: Install Skills validation package
+        run: pnpm install --frozen-lockfile
 
       - name: Install and build CLI
         working-directory: .ci/tiangong-lca-cli
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Test Skills repository contracts
+        run: pnpm test
+
+      - name: Validate exact published CLI fallback
+        if: matrix.os == 'ubuntu-latest' && matrix.arch == 'x64'
+        run: node process-hybrid-search/scripts/run-process-hybrid-search.mjs --published-cli --help
 
       - name: Validate skills
         env:
           TIANGONG_LCA_CLI_DIR: ${{ github.workspace }}/.ci/tiangong-lca-cli
-        run: node scripts/validate-skills.mjs
+        run: pnpm validate
