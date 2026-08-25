@@ -42,6 +42,7 @@ function collectMarkdown(rootDir) {
 function runGit(cwd, args) {
   const result = spawnSync('git', args, {
     cwd,
+    env: sanitizedGitEnv(),
     encoding: 'utf8',
     stdio: 'pipe',
     shell: false,

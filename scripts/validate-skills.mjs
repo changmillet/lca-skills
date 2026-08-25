@@ -13,6 +13,18 @@ import { flowGovernanceCliCommandEntries } from "../flow-governance-review/scrip
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
+const gitRepositoryLocationEnvNames = new Set([
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_COMMON_DIR",
+  "GIT_CEILING_DIRECTORIES",
+  "GIT_PREFIX",
+  "GIT_NAMESPACE",
+  "GIT_QUARANTINE_PATH",
+]);
 
 const defaultSkillNames = [
   "process-hybrid-search",
@@ -472,8 +484,14 @@ function runRequiredDocPatterns() {
 }
 
 function collectRepoDocFiles(rootDir) {
-  const result = spawnSync("git", ["ls-files", "-z", "--", "*.md"], {
+  const sanitizedEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !gitRepositoryLocationEnvNames.has(name.toUpperCase()),
+    ),
+  );
+  const result = spawnSync("git", ["-C", rootDir, "ls-files", "-z", "--", "*.md"], {
     cwd: rootDir,
+    env: sanitizedEnv,
     stdio: "pipe",
     encoding: "utf8",
     shell: false,
