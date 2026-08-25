@@ -1,0 +1,19 @@
+{
+  "name": "@tiangong-lca/skills-repo",
+  "version": "0.0.0-private",
+  "private": true,
+  "description": "Validation and packaging contract for TianGong LCA skills.",
+  "packageManager": "pnpm@11.23.0",
+  "engines": {
+    "node": "24.19.0",
+    "pnpm": "11.23.0"
+  },
+  "scripts": {
+    "check:toolchain": "node scripts/check-toolchain.mjs",
+    "test": "node --test",
+    "test:launcher": "node --test test/cli-launcher.test.mjs",
+    "validate": "node scripts/validate-skills.mjs",
+    "prepush:gate": "pnpm check:toolchain && pnpm test && pnpm validate"
+  },
+  "license": "MIT"
+}

@@ -221,7 +221,7 @@ function localCliNeedsBuild(invocation, options) {
   });
 }
 
-function assertToolchain(options) {
+export function assertSupportedToolchain(options = {}) {
   const nodeVersion = String(options.nodeVersion ?? process.versions.node).replace(/^v/u, '');
   if (nodeVersion !== expectedNodeVersion) {
     throw new Error(`Node ${expectedNodeVersion} is required; received ${nodeVersion}.`);
@@ -285,7 +285,7 @@ function ensureLocalCliBuild(invocation, options) {
 
 export function executeTiangongCommand(tiangongArgs, options = {}) {
   const invocation = buildTiangongInvocation(tiangongArgs, options);
-  assertToolchain(options);
+  assertSupportedToolchain(options);
   ensureLocalCliBuild(invocation, options);
 
   const spawnImpl = options.spawnImpl ?? spawnSync;
