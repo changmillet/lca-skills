@@ -4,7 +4,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -21,19 +20,11 @@ function read(relativePath) {
 }
 
 function collectMarkdown(rootDir) {
-  const files = [];
-  for (const entry of readdirSync(rootDir, { withFileTypes: true })) {
-    if (entry.name === '.git' || entry.name === 'node_modules') {
-      continue;
-    }
-    const fullPath = path.join(rootDir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...collectMarkdown(fullPath));
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      files.push(fullPath);
-    }
-  }
-  return files;
+  const result = runGit(rootDir, ['ls-files', '-z', '--', '*.md']);
+  return result.stdout
+    .split('\0')
+    .filter(Boolean)
+    .map((relativePath) => path.join(rootDir, relativePath));
 }
 
 function runGit(cwd, args) {
@@ -45,6 +36,7 @@ function runGit(cwd, args) {
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, result.stderr || result.stdout);
+  return result;
 }
 
 test('markdown inventory excludes untracked nested repositories under .ci', () => {

@@ -472,26 +472,24 @@ function runRequiredDocPatterns() {
 }
 
 function collectRepoDocFiles(rootDir) {
-  const entries = readdirSync(rootDir, { withFileTypes: true });
-  const files = [];
-
-  entries.forEach((entry) => {
-    if (entry.name === ".git" || entry.name === "node_modules") {
-      return;
-    }
-
-    const fullPath = path.join(rootDir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...collectRepoDocFiles(fullPath));
-      return;
-    }
-
-    if (entry.isFile() && entry.name.endsWith(".md")) {
-      files.push(fullPath);
-    }
+  const result = spawnSync("git", ["ls-files", "-z", "--", "*.md"], {
+    cwd: rootDir,
+    stdio: "pipe",
+    encoding: "utf8",
+    shell: false,
   });
+  if (result.error) {
+    fail(`Cannot inventory root Git-tracked Markdown: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    const detail = result.stderr?.trim() || result.stdout?.trim() || `exit code ${result.status}`;
+    fail(`Cannot inventory root Git-tracked Markdown: ${detail}`);
+  }
 
-  return files;
+  return result.stdout
+    .split("\0")
+    .filter(Boolean)
+    .map((relativePath) => path.join(rootDir, relativePath));
 }
 
 function runRepoWideDocGuards() {
