@@ -55,7 +55,7 @@ function passingToolchain() {
   return {
     nodeVersion: expectedNodeVersion,
     toolchainSpawnImpl: (command, args, options) => {
-      assert.equal(command, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm');
+      assert.equal(command, process.platform === 'win32' ? 'pnpm.exe' : 'pnpm');
       assert.deepEqual(args, ['--version']);
       assert.equal(options.shell, false);
       return { status: 0, stdout: `${expectedPnpmVersion}\n`, stderr: '' };
@@ -63,18 +63,24 @@ function passingToolchain() {
   };
 }
 
-test('normalizeCliRuntimeArgs auto-discovers the alternate tiangong-cli sibling', () => {
+test('normalizeCliRuntimeArgs defaults to the published CLI even when a sibling exists', () => {
   const { cliDir, args } = normalizeCliRuntimeArgs(['embedding-ft', '--help'], {
     env: {},
     repoRoot: '/workspace/tiangong-lca-skills',
     pathExists: (candidate) => candidate === '/workspace/tiangong-cli',
   });
 
-  assert.equal(cliDir, '/workspace/tiangong-cli');
+  assert.equal(cliDir, null);
   assert.deepEqual(args, ['embedding-ft', '--help']);
+
+  const invocation = buildTiangongInvocation(args, {
+    repoRoot: '/workspace/tiangong-lca-skills',
+    pathExists: (candidate) => candidate === '/workspace/tiangong-cli',
+  });
+  assert.equal(invocation.mode, 'published');
 });
 
-test('normalizeCliRuntimeArgs keeps explicit cli-dir overrides above auto-discovery', () => {
+test('normalizeCliRuntimeArgs keeps explicit cli-dir overrides above the published default', () => {
   const { cliDir, args } = normalizeCliRuntimeArgs(
     ['--cli-dir', '/tmp/manual cli', 'embedding-ft', '--help'],
     {
@@ -87,7 +93,7 @@ test('normalizeCliRuntimeArgs keeps explicit cli-dir overrides above auto-discov
   assert.deepEqual(args, ['embedding-ft', '--help']);
 });
 
-test('normalizeCliRuntimeArgs can explicitly select the published CLI above sibling discovery', () => {
+test('normalizeCliRuntimeArgs can explicitly select the published CLI', () => {
   const { cliDir, args } = normalizeCliRuntimeArgs(
     ['--published-cli', 'embedding-ft', '--help'],
     {
@@ -137,7 +143,7 @@ test('buildTiangongInvocation uses exact pnpm dlx argv for the published CLI con
 
   assert.equal(publishedCliPackageSpec, '@tiangong-lca/cli@0.1.1');
   assert.equal(invocation.mode, 'published');
-  assert.equal(invocation.command, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm');
+  assert.equal(invocation.command, process.platform === 'win32' ? 'pnpm.exe' : 'pnpm');
   assert.deepEqual(invocation.args, [
     'dlx',
     '--package=@tiangong-lca/cli@0.1.1',
@@ -165,18 +171,57 @@ test('buildTiangongInvocation preserves spaces as one authoritative argv value',
   assert.equal(invocation.args.filter((arg) => arg === '/workspace/case with spaces/rows.jsonl').length, 1);
 });
 
-test('buildTiangongInvocation dispatches pnpm.cmd on Windows without changing argv', () => {
+test('buildTiangongInvocation dispatches native pnpm.exe on Windows without changing argv', () => {
   const invocation = buildTiangongInvocation(['qa', 'process', '--help'], {
     platform: 'win32',
     repoRoot: 'C:\\workspace\\skills',
     pathExists: () => false,
   });
 
-  assert.equal(invocation.command, 'pnpm.cmd');
+  assert.equal(invocation.command, 'pnpm.exe');
   assert.deepEqual(invocation.args.slice(0, 3), [
     'dlx',
     '--package=@tiangong-lca/cli@0.1.1',
     'tiangong-lca',
+  ]);
+});
+
+test('runTiangongCommand uses native Windows pnpm without a command shell', () => {
+  const observed = [];
+  const exitCode = runTiangongCommand(['qa', 'process', '--help'], {
+    platform: 'win32',
+    nodeVersion: expectedNodeVersion,
+    toolchainSpawnImpl: (command, args, options) => {
+      observed.push({ phase: 'toolchain', command, args, shell: options.shell });
+      return { status: 0, stdout: `${expectedPnpmVersion}\n`, stderr: '' };
+    },
+    spawnImpl: (command, args, options) => {
+      observed.push({ phase: 'run', command, args, shell: options.shell });
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+
+  assert.equal(exitCode, 0);
+  assert.deepEqual(observed, [
+    {
+      phase: 'toolchain',
+      command: 'pnpm.exe',
+      args: ['--version'],
+      shell: false,
+    },
+    {
+      phase: 'run',
+      command: 'pnpm.exe',
+      args: [
+        'dlx',
+        '--package=@tiangong-lca/cli@0.1.1',
+        'tiangong-lca',
+        'qa',
+        'process',
+        '--help',
+      ],
+      shell: false,
+    },
   ]);
 });
 
@@ -409,13 +454,13 @@ test('runTiangongCommand installs from the frozen local lockfile before rebuildi
   assert.equal(exitCode, 0);
   assert.deepEqual(preparationCalls, [
     {
-      command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+      command: process.platform === 'win32' ? 'pnpm.exe' : 'pnpm',
       args: ['install', '--frozen-lockfile'],
       cwd: cliDir,
       shell: false,
     },
     {
-      command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
+      command: process.platform === 'win32' ? 'pnpm.exe' : 'pnpm',
       args: ['run', 'build'],
       cwd: cliDir,
       shell: false,

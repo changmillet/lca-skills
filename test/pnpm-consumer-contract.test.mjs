@@ -51,18 +51,32 @@ test('validation CI installs the exact CLI checkout through frozen pnpm only', (
   assert.match(workflow, /pnpm install --frozen-lockfile/u);
   assert.match(workflow, /pnpm run build/u);
   assert.match(workflow, /run-process-hybrid-search\.mjs --published-cli --help/u);
+  assert.equal(
+    workflow.match(
+      /uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1/gu,
+    )?.length,
+    2,
+  );
   assert.doesNotMatch(
     workflow,
-    /pnpm\/action-setup|actions\/setup-node|package-lock\.json|\bnpm (?:ci|exec|run)\b/u,
+    /actions\/checkout@v|pnpm\/action-setup|actions\/setup-node|package-lock\.json|\bnpm (?:ci|exec|run)\b/u,
   );
 });
 
-test('local push gate prepares Skills and CLI through frozen pnpm only', () => {
+test('local push gate defaults published and validates explicit local evidence before mutation', () => {
   const hook = read('.githooks/pre-push');
 
   assert.match(hook, /pnpm install --frozen-lockfile/u);
   assert.match(hook, /pnpm run build/u);
   assert.match(hook, /pnpm prepush:gate/u);
+  assert.match(hook, /TIANGONG_LCA_CLI_MODE=published/u);
+  assert.doesNotMatch(hook, /\.\.\/tiangong-lca-cli|\.\.\/tiangong-cli/u);
+  const evidenceIndex = hook.indexOf('check-toolchain.mjs --cli-dir "$cli_dir"');
+  const localInstallIndex = hook.indexOf(
+    'cd "$cli_dir" && pnpm install --frozen-lockfile',
+  );
+  assert.ok(evidenceIndex >= 0);
+  assert.ok(localInstallIndex > evidenceIndex);
   assert.doesNotMatch(hook, /package-lock\.json|\bnpm (?:ci|exec|run)\b/u);
 });
 
@@ -71,7 +85,7 @@ test('checked-in docs pin the TianGong CLI while preserving external skills npx 
     const text = readFileSync(filePath, 'utf8');
     assert.doesNotMatch(
       text,
-      /@tiangong-lca\/cli@latest|npm exec[^\n]*@tiangong-lca\/cli/u,
+      /@tiangong-lca\/cli@latest|(?:npm exec|npx)[^\n]*@tiangong-lca\/cli/u,
       path.relative(repoRoot, filePath),
     );
   }
@@ -79,4 +93,9 @@ test('checked-in docs pin the TianGong CLI while preserving external skills npx 
   assert.match(read('README.md'), /npx skills add https:\/\/github\.com\/tiangong-lca\/skills/u);
   assert.match(read('README.zh-CN.md'), /npx skills add https:\/\/github\.com\/tiangong-lca\/skills/u);
   assert.match(read('AGENTS.md'), /consumed through `npx skills`/u);
+  assert.match(
+    read('scripts/validate-skills.mjs'),
+    /npx\[\^\\n\]\*@tiangong-lca\\\/cli/u,
+  );
+  assert.doesNotMatch(read('scripts/lib/cli-launcher.mjs'), /pnpm\.cmd/u);
 });
