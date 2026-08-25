@@ -11,7 +11,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
-  buildTiangongInvocation,
+  executeTiangongCommand,
   normalizeCliRuntimeArgs,
   renderShellCommand,
   withCliRuntimeEnv,
@@ -168,32 +168,27 @@ function parseArgs(rawArgs) {
 }
 
 function runProcessList(cliDir, listArgs) {
-  const invocation = buildTiangongInvocation(['process', 'list', ...listArgs, '--json'], {
+  const result = executeTiangongCommand(['process', 'list', ...listArgs, '--json'], {
     repoRoot,
     cliDir,
-  });
-  const result = spawnSync(invocation.command, invocation.args, {
-    cwd: repoRoot,
-    env: withCliRuntimeEnv(process.env, cliDir),
-    stdio: 'pipe',
-    encoding: 'utf8',
+    spawnOptions: {
+      cwd: repoRoot,
+      env: withCliRuntimeEnv(process.env, cliDir),
+    },
   });
 
-  if (result.error) {
-    throw result.error;
-  }
   if (typeof result.status === 'number' && result.status !== 0) {
     const stderr = result.stderr?.trim() || result.stdout?.trim() || `exit code ${result.status}`;
     throw new Error(`Process list failed: ${stderr}`);
   }
   if (!result.stdout?.trim()) {
     throw new Error(
-      `Process list returned no stdout for ${renderShellCommand(invocation.command, invocation.args)}`,
+      `Process list returned no stdout for ${renderShellCommand(result.invocation.command, result.invocation.args)}`,
     );
   }
 
   return {
-    command: renderShellCommand(invocation.command, invocation.args),
+    command: renderShellCommand(result.invocation.command, result.invocation.args),
     stdout: result.stdout,
     stderr: result.stderr ?? '',
   };
@@ -215,6 +210,7 @@ function runQa(cliDir, rowsFile, qaOutDir, qaArgs) {
     env: withCliRuntimeEnv(process.env, cliDir),
     stdio: 'pipe',
     encoding: 'utf8',
+    shell: false,
   });
 
   if (result.error) {
