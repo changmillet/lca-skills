@@ -139,7 +139,7 @@ npx skills update --project --yes
 - skill wrapper 会优先自动发现本地 sibling CLI checkout：`../tiangong-lca-cli` 或 `../tiangong-cli`
 - 如果没有可用的本地 sibling checkout，则回退到精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`
 - 在本地开发或 CI 联调时，也可以使用 `--cli-dir` / `TIANGONG_LCA_CLI_DIR` 强制指向特定的本地 CLI working tree
-- 使用 `--published-cli` 可跳过 sibling 自动发现，显式执行 published-package case
+- 使用 `--published-cli` 可跳过 sibling 自动发现，显式执行 published-package case；嵌套 wrapper 会继续传播该选择，不会重新回退到 sibling
 - 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.1`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
 - launcher 只用 argv 数组并固定 `shell: false`，因此带空格路径保持为单个参数，并原样保留子进程 exit/stdout/stderr
 - 对远端 process QA snapshot，优先使用 `tiangong-lca process list --json` 再配合 `qa process --rows-file ...`，不再鼓励临时 bridge 脚本

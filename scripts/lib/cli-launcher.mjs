@@ -46,7 +46,10 @@ export function normalizeCliRuntimeArgs(rawArgs, options = {}) {
       repoRoot: options.repoRoot,
       pathExists: options.pathExists,
     });
-  let cliDir = normalizeCliDir(env.TIANGONG_LCA_CLI_DIR) ?? defaultCliDir;
+  let cliDir =
+    env.TIANGONG_LCA_CLI_MODE === 'published'
+      ? null
+      : normalizeCliDir(env.TIANGONG_LCA_CLI_DIR) ?? defaultCliDir;
   const args = [];
 
   for (let index = 0; index < rawArgs.length; index += 1) {
@@ -366,8 +369,10 @@ export function withCliRuntimeEnv(baseEnv, cliDir) {
 
   if (normalizedCliDir) {
     env.TIANGONG_LCA_CLI_DIR = normalizedCliDir;
+    delete env.TIANGONG_LCA_CLI_MODE;
   } else {
     delete env.TIANGONG_LCA_CLI_DIR;
+    env.TIANGONG_LCA_CLI_MODE = 'published';
   }
 
   return env;

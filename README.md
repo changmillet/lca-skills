@@ -139,7 +139,7 @@ Current rules:
 - wrappers auto-discover a local sibling CLI checkout first when `../tiangong-lca-cli` or `../tiangong-cli` exists
 - otherwise wrappers fall back to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`
 - use `--cli-dir` or `TIANGONG_LCA_CLI_DIR` to force a specific local CLI working tree during dev/CI
-- use `--published-cli` to bypass sibling auto-discovery for an explicit published-package case
+- use `--published-cli` to bypass sibling auto-discovery for an explicit published-package case; nested wrappers propagate that selection without falling back to a sibling
 - local CLI overrides must identify `@tiangong-lca/cli@0.1.1` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
 - launcher execution uses argv arrays with `shell: false`, so paths containing spaces remain one argument and child exit/stdout/stderr are preserved
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts
