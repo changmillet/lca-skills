@@ -128,7 +128,7 @@ Consuming projects should record the resolved upstream ref and command in task a
   ```bash
   pnpm validate -- lifecycleinventory-qa process-hybrid-search
   ```
-- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out `cli-v0.1.1`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
+- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out the immutable CLI `0.1.1` merge commit `be8d042b8ed3f961038bf870388a46388478e9a7`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
 
 ## Execution note
 

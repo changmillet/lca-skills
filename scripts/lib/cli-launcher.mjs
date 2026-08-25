@@ -13,6 +13,7 @@ const expectedCliPackageName = '@tiangong-lca/cli';
 const expectedCliPackageVersion = '0.1.1';
 const expectedCliPackageManager = `pnpm@${expectedPnpmVersion}`;
 const expectedCliNodeEngine = '>=24.19.0 <25';
+const verifiedToolchainsBySpawn = new WeakMap();
 const launcherDir = path.dirname(fileURLToPath(import.meta.url));
 const defaultSkillsRepoRoot = path.resolve(launcherDir, '..', '..');
 
@@ -229,6 +230,13 @@ export function assertSupportedToolchain(options = {}) {
 
   const pnpmCommand = resolvePnpmCommand(options.platform);
   const spawnImpl = options.toolchainSpawnImpl ?? spawnSync;
+  const verificationKey = `${nodeVersion}\0${options.platform ?? process.platform}\0${pnpmCommand}`;
+  const cacheEnabled = options.cacheToolchainVerification !== false;
+  const cachedKeys = cacheEnabled ? verifiedToolchainsBySpawn.get(spawnImpl) : null;
+  if (cachedKeys?.has(verificationKey)) {
+    return pnpmCommand;
+  }
+
   const result = spawnImpl(pnpmCommand, ['--version'], {
     stdio: 'pipe',
     encoding: 'utf8',
@@ -242,6 +250,12 @@ export function assertSupportedToolchain(options = {}) {
     throw new Error(
       `pnpm ${expectedPnpmVersion} is required; received ${actualPnpmVersion || 'unavailable'}.`,
     );
+  }
+
+  if (cacheEnabled) {
+    const nextCachedKeys = cachedKeys ?? new Set();
+    nextCachedKeys.add(verificationKey);
+    verifiedToolchainsBySpawn.set(spawnImpl, nextCachedKeys);
   }
 
   return pnpmCommand;

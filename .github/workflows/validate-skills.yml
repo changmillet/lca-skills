@@ -27,23 +27,15 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: tiangong-lca/tiangong-cli
-          ref: cli-v0.1.1
+          ref: be8d042b8ed3f961038bf870388a46388478e9a7
           path: .ci/tiangong-lca-cli
 
-      - name: Setup pnpm 11.23.0
-        uses: pnpm/action-setup@v4
+      - name: Set up pnpm 11.23.0 and Node 24.19.0
+        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
-          version: 11.23.0
-          run_install: false
-
-      - name: Setup Node 24.19.0
-        uses: actions/setup-node@v6
-        with:
-          node-version: '24.19.0'
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            .ci/tiangong-lca-cli/pnpm-lock.yaml
+          runtime: node@24.19.0
+          install: false
+          cache: true
 
       - name: Install Skills validation package
         run: pnpm install --frozen-lockfile
