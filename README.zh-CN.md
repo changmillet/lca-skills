@@ -18,8 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-08-25
-lastReviewedCommit: 9f77978b1cc6a7e28ed4f6d755307b8d55e3f18d
+lastReviewedAt: 2026-08-29
+lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
+lastReviewedNote: "Reviewed for Skills #83: 仓库校验使用精确 pnpm 11.24 与 CLI 0.1.3，外部 Skills CLI 安装方式保持不变。"
 ---
 
 # 天工 LCA Skills
@@ -111,7 +112,7 @@ npx skills update --project --yes
 
 ## 校验
 
-- 仓库校验固定使用 Node `24.19.0` 与 pnpm `11.23.0`；先从 `pnpm-lock.yaml` 安装校验包：
+- 仓库校验固定使用 Node `24.19.0` 与 pnpm `11.24.0`；先从 `pnpm-lock.yaml` 安装校验包：
   ```bash
   pnpm install --frozen-lockfile
   ```
@@ -128,7 +129,7 @@ npx skills update --project --yes
   ```bash
   pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.1` 的不可变 merge commit `be8d042b8ed3f961038bf870388a46388478e9a7`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
+- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.3` 的不可变 merge/tag commit `bcdb7c5522a7fda92e16115ac08ef1a2d3def67d`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
 
 ## 执行说明
 
@@ -136,10 +137,10 @@ npx skills update --project --yes
 
 当前约定：
 
-- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`；不会自动发现任何 sibling 目录
+- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.3 tiangong-lca`；不会自动发现任何 sibling 目录
 - 本地执行只能通过 `--cli-dir` / `TIANGONG_LCA_CLI_DIR` 显式启用
 - 使用 `--published-cli` 可覆盖本地 CLI 环境并显式执行 published-package case；嵌套 wrapper 会继续传播该选择
-- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.1`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
+- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.3`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
 - 本地 pre-push hook 会先验证显式 local checkout 的 package/lock evidence，再允许 install 或 build
 - launcher 只用 argv 数组并固定 `shell: false`，因此带空格路径保持为单个参数，并原样保留子进程 exit/stdout/stderr
 - 对远端 process QA snapshot，优先使用 `tiangong-lca process list --json` 再配合 `qa process --rows-file ...`，不再鼓励临时 bridge 脚本

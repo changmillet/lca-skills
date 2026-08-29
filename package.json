@@ -3,10 +3,10 @@
   "version": "0.0.0-private",
   "private": true,
   "description": "Validation and packaging contract for TianGong LCA skills.",
-  "packageManager": "pnpm@11.23.0",
+  "packageManager": "pnpm@11.24.0",
   "engines": {
     "node": "24.19.0",
-    "pnpm": "11.23.0"
+    "pnpm": "11.24.0"
   },
   "scripts": {
     "check:toolchain": "node scripts/check-toolchain.mjs",

@@ -1,8 +1,8 @@
 version: 1
 layout: repo
 # Review note, 2026-08-25: the existing validation-and-packaging contract now governs the pinned Node/pnpm package, frozen lockfile, shared CLI launcher/toolchain checks, and validation workflow; no separate rule was needed.
-lastReviewedAt: "2026-08-25"
-lastReviewedCommit: "5e41dcb25e379c4bab32e9c22ddb629232240eab"
+lastReviewedAt: "2026-08-29"
+lastReviewedCommit: "18b7df53b77668b11840bf3ad313fbbe267bc186"
 
 catalog:
   repos:
