@@ -302,7 +302,7 @@ test('buildTiangongInvocation fails closed on mismatched local CLI package state
         cliDir,
         ...fixture,
       }),
-    /expected @tiangong-lca\/cli@0\.1\.1/u,
+    /expected @tiangong-lca\/cli@0\.1\.3/u,
   );
 });
 
@@ -372,7 +372,7 @@ test('runTiangongCommand rejects a mismatched pnpm runtime before CLI dispatch',
           return { status: 0, stdout: '', stderr: '' };
         },
       }),
-    /pnpm 11\.23\.0 is required/u,
+    /pnpm 11\.24\.0 is required/u,
   );
   assert.equal(dispatched, false);
 });
