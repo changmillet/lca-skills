@@ -167,10 +167,10 @@ test('markdown inventory excludes untracked nested repositories under .ci', () =
 
 test('repository package contract pins the workspace Node and pnpm versions', () => {
   const manifest = JSON.parse(read('package.json'));
-  assert.equal(manifest.packageManager, 'pnpm@11.23.0');
+  assert.equal(manifest.packageManager, 'pnpm@11.24.0');
   assert.deepEqual(manifest.engines, {
     node: '24.19.0',
-    pnpm: '11.23.0',
+    pnpm: '11.24.0',
   });
   assert.match(read('pnpm-lock.yaml'), /^lockfileVersion: '9\.0'$/mu);
 });
@@ -178,12 +178,13 @@ test('repository package contract pins the workspace Node and pnpm versions', ()
 test('validation CI installs the exact CLI checkout through frozen pnpm only', () => {
   const workflow = read('.github/workflows/validate-skills.yml');
 
-  assert.match(workflow, /ref: be8d042b8ed3f961038bf870388a46388478e9a7/u);
+  assert.match(workflow, /ref: bcdb7c5522a7fda92e16115ac08ef1a2d3def67d/u);
   assert.match(
     workflow,
     /uses: pnpm\/setup@84cb39b217b10273981911c288cd62326dc7c6d2/u,
   );
   assert.match(workflow, /runtime: node@24\.19\.0/u);
+  assert.match(workflow, /version: 11\.24\.0/u);
   assert.match(workflow, /install: false/u);
   assert.match(workflow, /cache: true/u);
   assert.match(workflow, /pnpm install --frozen-lockfile/u);
