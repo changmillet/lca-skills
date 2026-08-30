@@ -29,9 +29,9 @@ checkPaths:
   - scripts/lib/cli-launcher.mjs
   - package.json
   - pnpm-lock.yaml
-lastReviewedAt: 2026-08-29
-lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
-lastReviewedNote: "Reviewed for Skills #83: exact pnpm 11.24 and CLI 0.1.3 stay within the validation-only launcher boundary."
+lastReviewedAt: 2026-08-31
+lastReviewedCommit: 4ea58f2c44612a2efee7ab86c1a058d825f13d00
+lastReviewedNote: "Reviewed for Skills #85: OAuth session checks and human/headless/multi-account instructions remain thin CLI orchestration and add no credential parser or auth runtime to Skills."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -69,6 +69,8 @@ Top-level Foundry scenario skills are allowed in this repository when they only 
 - `lca-workspace` owns root integration state and submodule pointer updates.
 
 If a skill needs a capability that does not exist in the CLI, add the capability to `tiangong-lca-cli` first and keep the skill as a thin wrapper over that CLI surface.
+
+Remote authentication follows the same boundary. Skills may invoke `auth status`, instruct a human to run browser `auth login`, and require live redacted `doctor-auth`, but they never inspect session files or handle passwords, codes, or tokens. Explicit headless and multi-account configuration remain CLI/orchestrator responsibilities. The validator rejects password-equivalent invocation examples in active Markdown.
 
 If a Foundry/source-evidence workflow needs an external Tiangong KB research skill, consume it with `npx skills` at runtime and record the resolved upstream ref in the task workspace. Do not copy the external skill package into this repository unless ownership is intentionally transferred.
 

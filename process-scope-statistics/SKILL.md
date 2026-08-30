@@ -13,7 +13,7 @@ Use this skill when the task is to answer questions like:
 ## Workflow
 
 1. Create an output directory first.
-2. Ensure `TIANGONG_LCA_*` is already exported or `.env` is available in the current working directory.
+2. Ensure the API base URL, Supabase publishable key, and public OAuth client ID are exported, then run `tiangong-lca auth status --json`. If it returns `login-required`, stop and ask the human to run `auth login` in a trusted terminal; never request a username, password, credential, code, or token.
 3. Run `node scripts/run-process-scope-statistics.mjs`.
 4. Review the JSON summaries and Markdown reports in that output directory.
 5. If you need a Chinese report, keep the `.zh-CN.md` output.
@@ -78,5 +78,6 @@ Read `references/metric-definitions.md` when you need the exact counting rules f
 ## Notes
 
 - This is a read-only statistics skill; it does not save remote edits.
+- Use a separate private session file per account/project/client. Headless execution may use only an orchestrator-injected short-lived access token that never enters argv, prompts, logs, or artifacts.
 - The skill is a thin wrapper over `tiangong-lca process scope-statistics`; it does not carry a separate remote runtime or private `.env` parser.
 - The metric layer is deterministic and string-based. It does not try to semantically merge cross-language variants unless they already share the same stable identifier.

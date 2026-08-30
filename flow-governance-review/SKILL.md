@@ -38,6 +38,10 @@ Do not use this skill for:
 - `publish-reviewed-data` is fully CLI-owned for both local preparation and commit-time process publish.
 - There is no Python fallback path and no shell compatibility shim.
 
+## Authentication Gate
+
+Before any remote read or commit, run `tiangong-lca auth status --json`. If it returns `login-required`, stop and ask the human user to run `tiangong-lca auth login` in a trusted terminal; never ask an AI user for a password, authorization code, token, or legacy API key. Before commit commands, require `tiangong-lca auth doctor-auth --json` to pass. Headless execution may use only an orchestrator-injected short-lived access token, never argv or artifacts. Use a distinct private `TIANGONG_LCA_SESSION_FILE` for each account/project/client and preserve the expected account in the task evidence.
+
 ## Commands
 
 - `flow-get`

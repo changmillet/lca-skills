@@ -36,9 +36,9 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-08-29
-lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
-lastReviewedNote: "Reviewed for Skills #83: exact pnpm 11.24 and published CLI 0.1.3 remain validation-only consumer infrastructure and do not move CLI behavior into Skills."
+lastReviewedAt: 2026-08-31
+lastReviewedCommit: 4ea58f2c44612a2efee7ab86c1a058d825f13d00
+lastReviewedNote: "Reviewed for Skills #85: active remote skills use CLI-owned OAuth status/login/doctor handoff, explicit headless and multi-account boundaries, and no password-equivalent API-key invocation; authentication implementation remains in CLI."
 related:
   - .docpact/config.yaml
   - docs/agents/repo-architecture.md
@@ -100,6 +100,8 @@ Route those tasks to:
 - This repo is distribution-oriented; each skill should stay a thin wrapper over the unified `tiangong-lca` CLI
 - If a capability is missing, add it to `tiangong-lca-cli` first, then update the skill wrapper here
 - Current-account dataset review skills may orchestrate frozen local inputs through public CLI commands, but must not own direct database access, credential parsing, or private account runtime logic.
+- Active remote skills must check `tiangong-lca auth status --json`, hand `auth login` to a human-controlled trusted terminal when required, and use `auth doctor-auth` before account-sensitive commits. They never collect or emit usernames, passwords, authorization codes, tokens, or legacy API keys.
+- Headless tokens are orchestrator-injected, short-lived, and absent from argv/prompts/logs/artifacts. Multi-account work uses a distinct private `TIANGONG_LCA_SESSION_FILE` per account/project/client and preserves expected identity evidence.
 - Source-evidence import skills may instruct agents to resolve external research skills with `npx skills`, but this repository should not mirror or pin those external skill packages.
 - `external-dataset-curated-import`, `source-evidence-dataset-development`, and `dataset-rls-maintenance` are top-level workflow skills only; executable conversion, queue state, validation, QA, write/delete/redo, and verify behavior stays in CLI/Foundry-owned commands.
 - Dataset maintenance under user RLS must use CLI-owned maintenance plans and readback verification. Skills must not add direct Supabase CRUD, service-role paths, or broad delete filters.
@@ -114,6 +116,7 @@ Route those tasks to:
 ## Hard Boundaries
 
 - Do not add private business runtimes, MCP transports, or unrelated orchestration layers inside a skill when the behavior should live in the CLI or an owning repo
+- Do not add legacy API-key flags, API-key assignment examples, or raw Authorization bearer examples to active skill instructions. Legacy bootstrap remains a CLI-owned rollback boundary only.
 - Do not vendor external runtime skills from `tiangong-ai/skills`; consuming projects should resolve them with `npx skills` and record the resolved upstream ref in task artifacts
 - Do not leave a changed `SKILL.md` without updating the paired `agents/openai.yaml` when the invocation contract changed
 - Do not treat a merged repo PR here as workspace-delivery complete if the root repo still needs a submodule bump

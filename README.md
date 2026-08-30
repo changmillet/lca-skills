@@ -18,9 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-08-29
-lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
-lastReviewedNote: "Reviewed for Skills #83: validation uses exact pnpm 11.24 and CLI 0.1.3 while external Skills CLI installation remains unchanged."
+lastReviewedAt: 2026-08-31
+lastReviewedCommit: 4ea58f2c44612a2efee7ab86c1a058d825f13d00
+lastReviewedNote: "Reviewed for Skills #85: active remote workflows use CLI OAuth status/login/doctor handoff with explicit human, headless, and multi-account boundaries; the exact published CLI pin will advance with release Issue #246."
 ---
 
 # Tiangong LCA Skills
@@ -110,6 +110,18 @@ Consuming projects should record the resolved upstream ref and command in task a
 - `$source-evidence-dataset-development`: evidence-driven data creation or update from PDFs, Word files, URLs, APIs, reports, database references, or scientific literature.
 - `$dataset-rls-maintenance`: current-user RLS-scoped cleanup, delete/retire, reference repair, and redo planning for previously imported rows; orchestrates CLI maintenance plans and readback verification without private database access.
 
+## Remote authentication
+
+Remote skills use the CLI-owned Supabase OAuth session. Configure `TIANGONG_LCA_API_BASE_URL`, `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`, and the environment-specific public `TIANGONG_LCA_OAUTH_CLIENT_ID`, then run:
+
+```bash
+tiangong-lca auth status --json
+```
+
+If the result is `login-required`, stop the agent workflow and let the human user run `tiangong-lca auth login` in a trusted terminal. Skills and agents must never request a username, password, authorization code, access token, refresh token, or the deprecated encoded API key. Use `tiangong-lca auth doctor-auth --json` before account-sensitive reads or commits.
+
+Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client context. Approved headless automation may use `TIANGONG_LCA_AUTH_MODE=access-token` with one short-lived `TIANGONG_LCA_ACCESS_TOKEN` injected by its orchestrator; the token must never enter argv, prompts, logs, or artifacts. Legacy API-key mode is a rollback boundary owned by the CLI, not an active skill setup path.
+
 ## Validation
 
 - Repository validation requires Node `24.19.0` and pnpm `11.24.0`; install the pinned validation package from `pnpm-lock.yaml` first:
@@ -146,4 +158,5 @@ Current rules:
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts
 - use native cross-platform Node `.mjs` wrappers as the canonical entrypoint
 - skill wrappers should not bundle business-specific Python runtimes, shell shims, MCP transports, or private env parsers
+- remote skill instructions must use CLI OAuth status/login/doctor handoff and must not add API-key flags or bearer examples
 - if a capability is missing, add a native `tiangong-lca <noun> <verb>` command first, then update the skill to call it

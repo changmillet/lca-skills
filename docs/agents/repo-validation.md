@@ -29,9 +29,9 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-08-29
-lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
-lastReviewedNote: "Reviewed for Skills #83: exact pnpm 11.24 and CLI 0.1.3 are enforced across local, published, and four-platform validation."
+lastReviewedAt: 2026-08-31
+lastReviewedCommit: 4ea58f2c44612a2efee7ab86c1a058d825f13d00
+lastReviewedNote: "Reviewed for Skills #85: validation inventories active remote skills, requires OAuth/human handoff and headless/multi-account boundaries, and rejects password-equivalent invocation examples."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -64,6 +64,7 @@ You may pass one or more skill directories to validate only the touched skill pa
 - Launcher filesystem fixtures and expected paths must use the host `node:path` implementation. A test that passes a synthetic `platform` may validate executable dispatch, but must not combine that target platform with host-resolved fake paths.
 - Repo-wide Markdown guards inventory only root-repository Git-tracked `*.md` paths through argv-based `git -C <root> ls-files -z`. Fixture and validator Git children remove inherited repository-location `GIT_*` variables first, so hook context cannot redirect their index or worktree; untracked or nested CI checkouts are not part of the Skills documentation contract.
 - Documentation-governance changes require docpact validation.
+- Remote-auth instruction changes require `test/oauth-skill-contract.test.mjs`, the repository-wide password-equivalent doc guard, validation against the exact OAuth-capable local CLI, and the full `pnpm prepush:gate` once the published CLI pin is updated.
 
 ## Docpact Validation
 

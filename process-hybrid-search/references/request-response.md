@@ -2,7 +2,9 @@
 
 ## Endpoint
 - POST `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/process_hybrid_search`
-- Headers: `Authorization: Bearer <TIANGONG_LCA_API_KEY>`, `x-region: us-east-1`
+- Headers: `Authorization: Bearer <CLI-resolved-Supabase-access-token>`, `x-region: us-east-1`
+
+The CLI obtains that bearer from its private OAuth session and never prints it. The skill does not accept or construct an Authorization header.
 
 ## Input
 ```json
@@ -32,4 +34,4 @@
 - Expects Postgres function `hybrid_search_processes(query_text text, query_embedding text, filter_condition jsonb|text)`.
 
 ## Auth
-- `Authorization: Bearer <TIANGONG_LCA_API_KEY>` required; `TIANGONG_LCA_API_KEY` is the canonical CLI auth variable.
+- Run `tiangong-lca auth status --json` before remote work. The CLI owns bearer resolution and refresh; this skill never accepts raw credentials or tokens.

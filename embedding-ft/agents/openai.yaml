@@ -1,4 +1,4 @@
 interface:
   display_name: "Embedding FT Worker"
   short_description: "Debug and run embedding worker jobs"
-  default_prompt: "Use $embedding-ft to validate an embedding job payload and run a remote smoke test through the pinned published CLI 0.1.1 via pnpm unless an exact local CLI override is explicitly selected."
+  default_prompt: "Use $embedding-ft to validate an embedding job and run the remote smoke through the pinned CLI OAuth session. Run `tiangong-lca auth doctor-auth --json` first; if login is required, hand the trusted terminal to the human and never request a password, code, token, or legacy API key."

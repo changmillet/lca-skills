@@ -18,9 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-08-29
-lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
-lastReviewedNote: "Reviewed for Skills #83: 仓库校验使用精确 pnpm 11.24 与 CLI 0.1.3，外部 Skills CLI 安装方式保持不变。"
+lastReviewedAt: 2026-08-31
+lastReviewedCommit: 4ea58f2c44612a2efee7ab86c1a058d825f13d00
+lastReviewedNote: "Reviewed for Skills #85: active 远程 workflow 使用 CLI OAuth status/login/doctor handoff，并明确 human、headless 与多账号边界；精确 published CLI pin 将随 release Issue #246 更新。"
 ---
 
 # 天工 LCA Skills
@@ -110,6 +110,18 @@ npx skills update --project --yes
 - `$source-evidence-dataset-development`：从 PDF、Word、URL、API、报告、数据库引用或科学文献进行 evidence-driven 数据新增或更新。
 - `$dataset-rls-maintenance`：在当前用户 RLS 可见范围内，对历史错误导入数据做清理、删除/退役、引用修复和 redo 计划；只编排 CLI maintenance plan 与 readback verification，不实现私有数据库访问。
 
+## 远程认证
+
+远程 skill 统一使用 CLI 管理的 Supabase OAuth session。配置 `TIANGONG_LCA_API_BASE_URL`、`TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY` 和环境专属 public `TIANGONG_LCA_OAUTH_CLIENT_ID` 后运行：
+
+```bash
+tiangong-lca auth status --json
+```
+
+若结果是 `login-required`，停止 agent workflow，把可信终端交给人类运行 `tiangong-lca auth login`。skill/agent 不得索取用户名、密码、authorization code、access token、refresh token 或旧编码 API key。账号敏感读取和 commit 前运行 `tiangong-lca auth doctor-auth --json`。
+
+每个 account/project/client 使用独立私有 `TIANGONG_LCA_SESSION_FILE`。批准的 headless 自动化只能由 orchestrator 通过 `TIANGONG_LCA_AUTH_MODE=access-token` 注入一个短期 `TIANGONG_LCA_ACCESS_TOKEN`；token 不得进入 argv、prompt、日志或产物。legacy API-key 模式只是 CLI 拥有的回滚边界，不是 active skill 配置路径。
+
 ## 校验
 
 - 仓库校验固定使用 Node `24.19.0` 与 pnpm `11.24.0`；先从 `pnpm-lock.yaml` 安装校验包：
@@ -146,4 +158,5 @@ npx skills update --project --yes
 - 对远端 process QA snapshot，优先使用 `tiangong-lca process list --json` 再配合 `qa process --rows-file ...`，不再鼓励临时 bridge 脚本
 - 对新迁移和后续重构的 skill，wrapper 入口优先直接使用原生 Node `.mjs`，不再新增 shell 兼容壳
 - skill wrapper 不应再打包业务 Python、MCP transport、私有 env parsing 或 shell shim
+- 远程 skill 必须使用 CLI OAuth status/login/doctor handoff，不得新增 API-key flag 或 bearer 示例
 - 若能力缺失，先在 `tiangong-lca-cli` 中新增原生 `tiangong-lca <noun> <verb>` 命令，再让 skill 调用它
