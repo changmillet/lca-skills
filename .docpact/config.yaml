@@ -1,7 +1,7 @@
 version: 1
 layout: repo
 # Review note, 2026-08-25: the existing validation-and-packaging contract now governs the pinned Node/pnpm package, frozen lockfile, shared CLI launcher/toolchain checks, and validation workflow; no separate rule was needed.
-# Review note, 2026-08-31: Skills #85 advances every active shared/default wrapper, immutable CI checkout, local override contract, and current skill reference to OAuth-capable CLI 0.1.5 / merge 2cef1c85417387ee245d5672f2cf403fb37f602c. Existing validation, packaging, skill, and documentation routes own the change; no ownership or rule split is required.
+# Review note, 2026-09-01: Skills #87 advances every active shared/default wrapper, immutable CI checkout, local override contract, and current skill reference to OAuth-capable CLI 0.1.6 / merge 72e27f3421937d8c07dcad77372fb3f548436e44. Existing validation, packaging, skill, and documentation routes own the change; no ownership or rule split is required.
 lastReviewedAt: "2026-08-31"
 lastReviewedCommit: "630c0db30388e905b6eac3b238b8d46a8db1803c"
 

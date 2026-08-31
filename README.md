@@ -20,7 +20,7 @@ checkPaths:
   - "*/scripts/**"
 lastReviewedAt: 2026-08-31
 lastReviewedCommit: 630c0db30388e905b6eac3b238b8d46a8db1803c
-lastReviewedNote: "Reviewed for Skills #85: active remote workflows use OAuth handoff and exact published CLI 0.1.5 / immutable merge 2cef1c8 across wrappers, CI, and local overrides."
+lastReviewedNote: "Reviewed for Skills #87: active remote workflows use OAuth handoff and exact published CLI 0.1.6 / immutable merge 72e27f3 across wrappers, CI, and local overrides."
 ---
 
 # Tiangong LCA Skills
@@ -141,7 +141,7 @@ Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/clie
   ```bash
   pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out immutable CLI `0.1.5` merge/tag commit `2cef1c85417387ee245d5672f2cf403fb37f602c`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
+- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out immutable CLI `0.1.6` merge/tag commit `72e27f3421937d8c07dcad77372fb3f548436e44`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
 
 ## Execution note
 
@@ -149,10 +149,10 @@ Skills in this repository are expected to be thin wrappers over the unified `tia
 
 Current rules:
 
-- wrappers default to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.5 tiangong-lca`; sibling directories are never auto-discovered
+- wrappers default to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.6 tiangong-lca`; sibling directories are never auto-discovered
 - local execution is opt-in only through `--cli-dir` or `TIANGONG_LCA_CLI_DIR`
 - use `--published-cli` to override a local CLI environment for an explicit published-package case; nested wrappers propagate that selection
-- local CLI overrides must identify `@tiangong-lca/cli@0.1.5` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
+- local CLI overrides must identify `@tiangong-lca/cli@0.1.6` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
 - the local pre-push hook validates CLI package and lock evidence before it installs or builds an explicitly selected local checkout
 - launcher execution uses argv arrays with `shell: false`, so paths containing spaces remain one argument and child exit/stdout/stderr are preserved
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts

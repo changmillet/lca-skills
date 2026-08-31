@@ -178,7 +178,7 @@ test('repository package contract pins the workspace Node and pnpm versions', ()
 test('validation CI installs the exact CLI checkout through frozen pnpm only', () => {
   const workflow = read('.github/workflows/validate-skills.yml');
 
-  assert.match(workflow, /ref: 2cef1c85417387ee245d5672f2cf403fb37f602c/u);
+  assert.match(workflow, /ref: 72e27f3421937d8c07dcad77372fb3f548436e44/u);
   assert.match(
     workflow,
     /uses: pnpm\/setup@84cb39b217b10273981911c288cd62326dc7c6d2/u,
