@@ -46,14 +46,16 @@ node current-account-dataset-review/scripts/run-current-account-dataset-review.m
 ## Runtime Contract
 - Remote refresh uses canonical CLI env only:
   - `TIANGONG_LCA_API_BASE_URL`
-  - `TIANGONG_LCA_API_KEY`
   - `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`
-- `TIANGONG_LCA_API_KEY` is sensitive and must come from env or the caller's secret store, never from skill files or committed scripts.
+  - `TIANGONG_LCA_OAUTH_CLIENT_ID`
+- Run `tiangong-lca auth status --json` before remote reads and `tiangong-lca auth doctor-auth --json` before `--apply`. If login is required, stop and ask the human to run `auth login` in a trusted terminal.
+- Never ask for or print a username, password, authorization code, token, or legacy API key. A headless orchestrator may inject one short-lived access token without exposing it to argv, prompts, logs, or artifacts.
+- Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client.
 - `verify-process-rows` is local-only and does not require remote credentials by itself.
 - Wrapper-local `--cli-dir` is the only supported override for choosing a local CLI checkout.
 
 ## Guardrails
-- Never hardcode or print passwords, access tokens, decoded API-key payloads, or raw secret env values.
+- Never hardcode or print passwords, access tokens, refresh tokens, authorization codes, decoded legacy payloads, or raw secret env values.
 - Keep `--out-dir` explicit so manifests, progress logs, blockers, and verification artifacts are reproducible.
 - Before any remote write, apply the state-driven routing rule in [references/process-write-routing.md](references/process-write-routing.md).
 - Treat local `ProcessSchema` validation plus unresolved-reference checks as the hard gate, not HTTP success alone.

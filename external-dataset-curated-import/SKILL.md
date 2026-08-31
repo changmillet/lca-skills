@@ -91,6 +91,8 @@ tiangong-lca dataset curation-queue verify \
 
 The verify report must be `passed` for the committed scope. If verify is blocked while `next` still returns `ready`, continue the queue.
 
+10. Before the first remote account read or write, run `tiangong-lca auth status --json`; before commit, require `tiangong-lca auth doctor-auth --json`. If login is required, stop and ask the human to run `auth login` in a trusted terminal. Never request a username, password, authorization code, token, or legacy API key. Use a separate private session per account/project/client; headless tokens may come only from an approved orchestrator and never enter argv or artifacts.
+
 ## Stop Rules
 
 Stop and return blocker evidence when:

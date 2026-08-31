@@ -21,6 +21,8 @@ description: "QA process-level or lifecyclemodel-level lifecycle inventory outpu
 - 两个 profile 都不再走 skill 私有 Python / OpenAI 入口
 - 没有 shell 兼容壳
 
+远端 snapshot 前先运行 `tiangong-lca auth status --json`。若返回 `login-required`，停止并把可信终端交给人类运行 `tiangong-lca auth login`；不得向用户索取用户名、密码、authorization code、token 或旧 API key。账号敏感复审使用独立私有 `TIANGONG_LCA_SESSION_FILE`，并在冻结 snapshot 前运行 `tiangong-lca auth doctor-auth --json`。headless 仅允许 orchestrator 注入短期 access token，且不能进入 argv、prompt、日志或产物。
+
 ### 默认 profile
 若未显式传入 `--profile`，默认使用 `process`。
 

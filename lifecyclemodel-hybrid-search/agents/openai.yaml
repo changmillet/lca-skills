@@ -1,4 +1,4 @@
 interface:
   display_name: "Lifecycle Model Hybrid Search"
   short_description: "Debug and tune lifecycle model search requests"
-  default_prompt: "Use $lifecyclemodel-hybrid-search to validate lifecycle model query, filter, and response behavior through the pinned published CLI 0.1.1 via pnpm unless an exact local CLI override is explicitly selected."
+  default_prompt: "Use $lifecyclemodel-hybrid-search to validate a lifecycle model query, filter, and response through the pinned CLI OAuth session. Check `tiangong-lca auth status --json` first; if login is required, hand the trusted terminal to the human and never request a password, code, token, or legacy API key."

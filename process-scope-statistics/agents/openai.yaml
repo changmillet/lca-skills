@@ -1,4 +1,4 @@
 interface:
   display_name: "Process Scope Statistics"
   short_description: "Count repeatable coverage stats for remote process snapshots"
-  default_prompt: "Use $process-scope-statistics to call the TianGong CLI for visible or owner-filtered process snapshots and compute repeatable coverage statistics for domains, crafts/routes, unit-process rows, and products."
+  default_prompt: "Use $process-scope-statistics through the CLI OAuth session. Check auth status first, hand login to the human if required, keep account sessions separate, and never request a password, code, token, or legacy API key."

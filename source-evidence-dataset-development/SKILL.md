@@ -72,6 +72,8 @@ Include the command, source repo, resolved `refs/heads/main` commit, skill name,
 9. Route semantic blockers to child skills such as `flow-governance-review`, `process-automated-builder`, or Foundry authoring tasks.
 10. Verify queue scope, run dry-run/publish handoff, and require readback verification before completion.
 
+Before any remote account read or write in steps 8-10, run `tiangong-lca auth status --json`; before commit, require `tiangong-lca auth doctor-auth --json`. A `login-required` result is a human handoff to `auth login` in a trusted terminal. Never request a username, password, credential, authorization code, token, or legacy API key. Keep a separate private session per account/project/client; headless tokens may come only from an approved orchestrator and never enter argv or artifacts.
+
 ## Stop Rules
 
 Stop when:

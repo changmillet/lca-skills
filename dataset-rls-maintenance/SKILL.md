@@ -73,15 +73,16 @@ but must not substitute ad hoc SQL, REST deletes, or Foundry-local database code
 
 ## Workflow
 
-1. Freeze the maintenance scope manifest before any remote action. Include dataset type/table, id, version, expected owner, state code, import run id, source package or evidence task id, and operation reason for every target row.
-2. Capture the current-user visible remote snapshot through the CLI. The snapshot must prove which rows are visible under RLS and which requested rows are missing, protected, public/shared, or owned by someone else.
-3. Build a reference impact report before delete or redo. Processes, lifecyclemodels, flows, sources, contacts, and support rows must be checked for inbound and outbound references at the same scope.
-4. Classify every target row into one of: `delete_candidate`, `retire_candidate`, `rewrite_reference`, `redo_candidate`, `skip_missing`, `protected`, or `blocked`.
-5. Produce `maintenance-plan.json` and `dry-run-report.json`. The plan must include row-level actions, order of operations, dependency blockers, expected post-state, and rollback notes.
-6. Require explicit approval before `apply --commit`. Approval must name the plan file, operation, current user/account, row counts, and whether redo rows are ready.
-7. Execute only through the CLI maintenance command or existing public CLI save-draft/publish paths named by the approved plan.
-8. Run readback verification after any commit. Verification must re-fetch affected rows and references and compare them against the plan.
-9. For redo, start a fresh Foundry import or source-evidence task from the corrected source manifest after cleanup is verified. Do not reuse stale `.foundry` artifacts as proof of the new run.
+1. Run `tiangong-lca auth status --json`, then require `tiangong-lca auth doctor-auth --json` to pass before any account snapshot or mutation. If login is required, stop and ask the human to run `auth login` in a trusted terminal. Never request a password, authorization code, token, or legacy API key; use a separate private session file per account/project/client.
+2. Freeze the maintenance scope manifest before any remote action. Include dataset type/table, id, version, expected owner, state code, import run id, source package or evidence task id, and operation reason for every target row.
+3. Capture the current-user visible remote snapshot through the CLI. The snapshot must prove which rows are visible under RLS and which requested rows are missing, protected, public/shared, or owned by someone else.
+4. Build a reference impact report before delete or redo. Processes, lifecyclemodels, flows, sources, contacts, and support rows must be checked for inbound and outbound references at the same scope.
+5. Classify every target row into one of: `delete_candidate`, `retire_candidate`, `rewrite_reference`, `redo_candidate`, `skip_missing`, `protected`, or `blocked`.
+6. Produce `maintenance-plan.json` and `dry-run-report.json`. The plan must include row-level actions, order of operations, dependency blockers, expected post-state, and rollback notes.
+7. Require explicit approval before `apply --commit`. Approval must name the plan file, operation, current user/account, row counts, and whether redo rows are ready.
+8. Execute only through the CLI maintenance command or existing public CLI save-draft/publish paths named by the approved plan.
+9. Run readback verification after any commit. Verification must re-fetch affected rows and references and compare them against the plan.
+10. For redo, start a fresh Foundry import or source-evidence task from the corrected source manifest after cleanup is verified. Do not reuse stale `.foundry` artifacts as proof of the new run.
 
 ## Required Artifacts
 

@@ -9,7 +9,7 @@ Use this skill when the source of truth is already a lifecycle model `json_order
 
 ## Run Workflow
 
-1. By default the wrapper runs the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`. Use `TIANGONG_LCA_CLI_DIR` or `--cli-dir` only for local dev/CI overrides.
+1. By default the wrapper runs the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.5 tiangong-lca`. Use `TIANGONG_LCA_CLI_DIR` or `--cli-dir` only for local dev/CI overrides.
 2. Use `node scripts/run-lifecyclemodel-resulting-process-builder.mjs build ...` to delegate to `tiangong-lca lifecyclemodel build-resulting-process`.
 3. Use `node scripts/run-lifecyclemodel-resulting-process-builder.mjs publish ...` to delegate to `tiangong-lca lifecyclemodel publish-resulting-process`.
 4. Confirm the local artifacts in the run directory before any later `tiangong-lca publish run` step.
@@ -61,7 +61,7 @@ Referenced process datasets may be provided via:
 - `process_sources.process_json_files[]`
 - auto-detected sibling directories such as `processes/` or `*-processes/` when using `--model-file`
 
-Canonical request files should use `process_sources.allow_remote_lookup`, but the normal skill flow is still local-first and should keep it `false` unless deterministic remote process lookup is explicitly needed. When `process_sources.allow_remote_lookup=true`, supply `TIANGONG_LCA_API_BASE_URL` and `TIANGONG_LCA_API_KEY` or pass `--base-url` and `--api-key` through to the CLI.
+Canonical request files should use `process_sources.allow_remote_lookup`, but the normal skill flow is still local-first and should keep it `false` unless deterministic remote process lookup is explicitly needed. When `process_sources.allow_remote_lookup=true`, configure the API base URL, Supabase publishable key, and public OAuth client ID; run `tiangong-lca auth status --json` first. If login is required, stop and ask the human to run `auth login` in a trusted terminal. Never pass a username, password, credential, code, token, or legacy API key through CLI flags, prompts, logs, or artifacts; keep account session files separate.
 
 ## Outputs
 

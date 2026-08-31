@@ -72,6 +72,8 @@ const historicalValidatePyCurrentPathPattern = new RegExp(
 );
 const legacyPublishedCliInvocationPattern =
   /@tiangong-lca\/cli@latest|npm exec[^\n]*@tiangong-lca\/cli|npx[^\n]*@tiangong-lca\/cli/iu;
+const passwordEquivalentAuthInvocationPattern =
+  /TIANGONG_LCA_API_KEY\s*=|--api-key(?:\s|`)|Authorization:\s*Bearer\s*<TIANGONG_LCA_API_KEY>|Auth variable:\s*`TIANGONG_LCA_API_KEY`/iu;
 
 const docGuards = [
   {
@@ -236,6 +238,11 @@ const repoWideDocGuards = [
     pattern: legacyPublishedCliInvocationPattern,
     message:
       "Skill docs should use the pinned pnpm CLI invocation from cli-launcher.mjs instead of a floating or npm-based TianGong CLI fallback.",
+  },
+  {
+    pattern: passwordEquivalentAuthInvocationPattern,
+    message:
+      "Active skill docs must use CLI OAuth status/login/doctor handoff instead of password-equivalent API-key invocation examples.",
   },
 ];
 

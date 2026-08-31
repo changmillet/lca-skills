@@ -8,7 +8,7 @@ Prefer local JSON or JSONL inputs. In local mode, no remote credentials are requ
 
 ## Wrapper Resolution
 
-Wrappers run the exact published CLI by default through `pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca`.
+Wrappers run the exact package pinned by `scripts/lib/cli-launcher.mjs`.
 
 Set `TIANGONG_LCA_CLI_DIR` or pass `--cli-dir` only when you need a local CLI working tree for dev/CI.
 
@@ -17,9 +17,11 @@ Set `TIANGONG_LCA_CLI_DIR` or pass `--cli-dir` only when you need a local CLI wo
 Commands that read or write through the TianGong LCA API use the CLI's canonical env contract:
 
 - `TIANGONG_LCA_API_BASE_URL`
-- `TIANGONG_LCA_API_KEY`
 - `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`
+- `TIANGONG_LCA_OAUTH_CLIENT_ID`
 - `TIANGONG_LCA_REGION` (optional)
+
+Run `tiangong-lca auth status --json` before remote reads and `tiangong-lca auth doctor-auth --json` before commits. A `login-required` result is a human handoff to `auth login`; the skill must not collect credentials, codes, or tokens. For headless work, the orchestrator may inject one short-lived `TIANGONG_LCA_ACCESS_TOKEN` without exposing it to prompts, argv, logs, or artifacts. Use separate private session files for separate accounts.
 
 Typical commands in this skill that may need those env values:
 

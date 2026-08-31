@@ -2,7 +2,9 @@
 
 ## Endpoint
 - POST `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/lifecyclemodel_hybrid_search`
-- Headers: `Authorization: Bearer <TIANGONG_LCA_API_KEY>`, `x-region: us-east-1`
+- Headers: `Authorization: Bearer <CLI-resolved-Supabase-access-token>`, `x-region: us-east-1`
+
+The CLI obtains that bearer from its private OAuth session and never prints it. The skill does not accept or construct an Authorization header.
 
 ## Input
 ```json

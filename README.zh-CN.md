@@ -18,9 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-08-29
-lastReviewedCommit: b5be396684455c04344abbdf7b8574c531dbd19d
-lastReviewedNote: "Reviewed for Skills #83: 仓库校验使用精确 pnpm 11.24 与 CLI 0.1.3，外部 Skills CLI 安装方式保持不变。"
+lastReviewedAt: 2026-08-31
+lastReviewedCommit: 630c0db30388e905b6eac3b238b8d46a8db1803c
+lastReviewedNote: "Reviewed for Skills #85: active 远程 workflow 使用 OAuth handoff，并在 wrapper、CI 与 local override 中固定 published CLI 0.1.5 / immutable merge 2cef1c8。"
 ---
 
 # 天工 LCA Skills
@@ -110,6 +110,18 @@ npx skills update --project --yes
 - `$source-evidence-dataset-development`：从 PDF、Word、URL、API、报告、数据库引用或科学文献进行 evidence-driven 数据新增或更新。
 - `$dataset-rls-maintenance`：在当前用户 RLS 可见范围内，对历史错误导入数据做清理、删除/退役、引用修复和 redo 计划；只编排 CLI maintenance plan 与 readback verification，不实现私有数据库访问。
 
+## 远程认证
+
+远程 skill 统一使用 CLI 管理的 Supabase OAuth session。配置 `TIANGONG_LCA_API_BASE_URL`、`TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY` 和环境专属 public `TIANGONG_LCA_OAUTH_CLIENT_ID` 后运行：
+
+```bash
+tiangong-lca auth status --json
+```
+
+若结果是 `login-required`，停止 agent workflow，把可信终端交给人类运行 `tiangong-lca auth login`。skill/agent 不得索取用户名、密码、authorization code、access token、refresh token 或旧编码 API key。账号敏感读取和 commit 前运行 `tiangong-lca auth doctor-auth --json`。
+
+每个 account/project/client 使用独立私有 `TIANGONG_LCA_SESSION_FILE`。批准的 headless 自动化只能由 orchestrator 通过 `TIANGONG_LCA_AUTH_MODE=access-token` 注入一个短期 `TIANGONG_LCA_ACCESS_TOKEN`；token 不得进入 argv、prompt、日志或产物。legacy API-key 模式只是 CLI 拥有的回滚边界，不是 active skill 配置路径。
+
 ## 校验
 
 - 仓库校验固定使用 Node `24.19.0` 与 pnpm `11.24.0`；先从 `pnpm-lock.yaml` 安装校验包：
@@ -129,7 +141,7 @@ npx skills update --project --yes
   ```bash
   pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.3` 的不可变 merge/tag commit `bcdb7c5522a7fda92e16115ac08ef1a2d3def67d`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
+- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.5` 的不可变 merge/tag commit `2cef1c85417387ee245d5672f2cf403fb37f602c`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
 
 ## 执行说明
 
@@ -137,13 +149,14 @@ npx skills update --project --yes
 
 当前约定：
 
-- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.3 tiangong-lca`；不会自动发现任何 sibling 目录
+- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.5 tiangong-lca`；不会自动发现任何 sibling 目录
 - 本地执行只能通过 `--cli-dir` / `TIANGONG_LCA_CLI_DIR` 显式启用
 - 使用 `--published-cli` 可覆盖本地 CLI 环境并显式执行 published-package case；嵌套 wrapper 会继续传播该选择
-- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.3`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
+- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.5`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
 - 本地 pre-push hook 会先验证显式 local checkout 的 package/lock evidence，再允许 install 或 build
 - launcher 只用 argv 数组并固定 `shell: false`，因此带空格路径保持为单个参数，并原样保留子进程 exit/stdout/stderr
 - 对远端 process QA snapshot，优先使用 `tiangong-lca process list --json` 再配合 `qa process --rows-file ...`，不再鼓励临时 bridge 脚本
 - 对新迁移和后续重构的 skill，wrapper 入口优先直接使用原生 Node `.mjs`，不再新增 shell 兼容壳
 - skill wrapper 不应再打包业务 Python、MCP transport、私有 env parsing 或 shell shim
+- 远程 skill 必须使用 CLI OAuth status/login/doctor handoff，不得新增 API-key flag 或 bearer 示例
 - 若能力缺失，先在 `tiangong-lca-cli` 中新增原生 `tiangong-lca <noun> <verb>` 命令，再让 skill 调用它

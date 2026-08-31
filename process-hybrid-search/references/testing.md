@@ -3,24 +3,25 @@
 ## Preferred smoke test
 ```bash
 TIANGONG_LCA_API_BASE_URL="https://example.supabase.co/functions/v1" \
-TIANGONG_LCA_API_KEY="<your-api-key>" \
+TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY="<publishable-key>" \
+TIANGONG_LCA_OAUTH_CLIENT_ID="<public-oauth-client-id>" \
 node scripts/run-process-hybrid-search.mjs
 ```
 
 ## Dry run (request preview)
 ```bash
 TIANGONG_LCA_API_BASE_URL="https://example.supabase.co/functions/v1" \
-TIANGONG_LCA_API_KEY="<your-api-key>" \
+TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY="<publishable-key>" \
+TIANGONG_LCA_OAUTH_CLIENT_ID="<public-oauth-client-id>" \
 node scripts/run-process-hybrid-search.mjs --dry-run
 ```
 
 ## Direct CLI equivalent
 ```bash
-pnpm dlx --package=@tiangong-lca/cli@0.1.1 tiangong-lca \
+tiangong-lca \
   search process \
   --input ./assets/example-request.json \
   --base-url "https://example.supabase.co/functions/v1" \
-  --api-key "$TIANGONG_LCA_API_KEY" \
   --dry-run
 ```
 

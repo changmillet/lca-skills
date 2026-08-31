@@ -42,6 +42,7 @@ node scripts/run-lca-publish-executor.mjs publish \
 
 ## Notes
 - This wrapper is CLI-only; there is no Python or MCP fallback path.
+- Before any remote publish, require `tiangong-lca auth doctor-auth --json`. A `login-required` result is a human handoff to `auth login`; never request a password, authorization code, token, or legacy API key. Keep a distinct private session per account/project/client. Headless tokens may come only from an approved orchestrator and never enter argv, prompts, logs, or artifacts.
 - Keep this skill as a stable request façade only. Do not add publish internals here.
 - Do not publish if upstream identity, build-plan, schema, deterministic QA, Foundry process curation, reference, matrix-readiness, or account-verification gates are missing or blocked.
 - If `verification-report.json` contains blockers, stop and hand off the artifact path instead of retrying blindly.

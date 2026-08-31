@@ -14,8 +14,9 @@ description: Review and repair current-account TianGong dataset snapshots across
 
 ## Canonical Flow
 
-1. Freeze or receive the account-scoped input rows.
-2. Validate all local rows:
+1. Before remote account work, run `tiangong-lca auth status --json`. If it returns `login-required`, stop and ask the human to run `tiangong-lca auth login` in a trusted terminal. Run `tiangong-lca auth doctor-auth --json` before a commit or account-sensitive readback. Never ask for a username, password, authorization code, token, or legacy API key.
+2. Freeze or receive the account-scoped input rows.
+3. Validate all local rows:
 
 ```bash
 node current-account-dataset-review/scripts/run-current-account-dataset-review.mjs validate \
@@ -24,7 +25,7 @@ node current-account-dataset-review/scripts/run-current-account-dataset-review.m
   --out-dir /abs/path/dataset-validate
 ```
 
-3. If an upstream flow version changes, rewrite downstream references locally first:
+4. If an upstream flow version changes, rewrite downstream references locally first:
 
 ```bash
 node current-account-dataset-review/scripts/run-current-account-dataset-review.mjs rewrite-references \
@@ -37,7 +38,7 @@ node current-account-dataset-review/scripts/run-current-account-dataset-review.m
   --dry-run
 ```
 
-4. Refresh references against reachable remote rows when the task requires current published versions:
+5. Refresh references against reachable remote rows when the task requires current published versions:
 
 ```bash
 node current-account-dataset-review/scripts/run-current-account-dataset-review.mjs refresh-remote-references \
@@ -50,7 +51,7 @@ node current-account-dataset-review/scripts/run-current-account-dataset-review.m
 Input artifact: frozen flow, process, or lifecyclemodel rows.
 Output artifacts: refreshed rows, remote lookup report, and blockers emitted by `tiangong-lca dataset references refresh-remote`.
 
-5. Save lifecyclemodel drafts only after local validation passes:
+6. Save lifecyclemodel drafts only after local validation passes:
 
 ```bash
 node current-account-dataset-review/scripts/run-current-account-dataset-review.mjs save-lifecyclemodels \
@@ -59,7 +60,7 @@ node current-account-dataset-review/scripts/run-current-account-dataset-review.m
   --dry-run
 ```
 
-6. Generate graph artifacts and connection findings for lifecyclemodels:
+7. Generate graph artifacts and connection findings for lifecyclemodels:
 
 ```bash
 node current-account-dataset-review/scripts/run-current-account-dataset-review.mjs graph-lifecyclemodels \
@@ -69,7 +70,7 @@ node current-account-dataset-review/scripts/run-current-account-dataset-review.m
   --check-connections
 ```
 
-7. After any remote write, re-fetch or freeze the persisted rows and run remote/reference verification:
+8. After any remote write, re-fetch or freeze the persisted rows and run remote/reference verification:
 
 ```bash
 node current-account-dataset-review/scripts/run-current-account-dataset-review.mjs verify-remote \
@@ -86,9 +87,9 @@ Output artifact: `dataset-remote-verify` report from `tiangong-lca dataset verif
 - Local dry-runs do not require remote credentials.
 - Commit paths use the canonical CLI env only:
   - `TIANGONG_LCA_API_BASE_URL`
-  - `TIANGONG_LCA_API_KEY`
   - `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`
-- `TIANGONG_LCA_API_KEY` is sensitive and must come from env or the caller's secret store.
+  - `TIANGONG_LCA_OAUTH_CLIENT_ID`
+- Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client. Headless runs may use only an orchestrator-injected short-lived `TIANGONG_LCA_ACCESS_TOKEN` that never enters argv, prompts, logs, or artifacts.
 
 ## Stop Rules
 

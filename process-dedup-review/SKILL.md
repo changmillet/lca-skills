@@ -63,13 +63,14 @@ If the source begins as a spreadsheet, convert it into grouped JSON before using
 
 ## Remote Enrichment
 
-- If `TIANGONG_LCA_API_BASE_URL`, `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`, and `TIANGONG_LCA_API_KEY` are available, the CLI enriches each candidate with:
+- If `TIANGONG_LCA_API_BASE_URL`, `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`, and `TIANGONG_LCA_OAUTH_CLIENT_ID` are available, run `tiangong-lca auth status --json`; the CLI then enriches each candidate with:
   - `state_code`
   - `created_at`
   - `modified_at`
   - remote exchange flow short descriptions
   - reference scan results within the authenticated user's accessible scope across `processes` and `lifecyclemodels`
 - The CLI loads `.env` from the current working directory before reading `TIANGONG_LCA_*`.
+- If status is `login-required`, stop and ask the human to run `auth login` in a trusted terminal. Never request a password, code, token, or legacy API key. Use a separate private session file per account; headless tokens may come only from an approved orchestrator and never enter argv or artifacts.
 - If remote enrichment fails, continue with local grouped-JSON evidence and note the limitation in the review output.
 
 ## Canonical Outputs
