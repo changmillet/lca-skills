@@ -19,8 +19,8 @@ checkPaths:
   - "*/SKILL.md"
   - "*/scripts/**"
 lastReviewedAt: 2026-08-31
-lastReviewedCommit: 4ea58f2c44612a2efee7ab86c1a058d825f13d00
-lastReviewedNote: "Reviewed for Skills #85: active 远程 workflow 使用 CLI OAuth status/login/doctor handoff，并明确 human、headless 与多账号边界；精确 published CLI pin 将随 release Issue #246 更新。"
+lastReviewedCommit: 630c0db30388e905b6eac3b238b8d46a8db1803c
+lastReviewedNote: "Reviewed for Skills #85: active 远程 workflow 使用 OAuth handoff，并在 wrapper、CI 与 local override 中固定 published CLI 0.1.5 / immutable merge 2cef1c8。"
 ---
 
 # 天工 LCA Skills
@@ -141,7 +141,7 @@ tiangong-lca auth status --json
   ```bash
   pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.3` 的不可变 merge/tag commit `bcdb7c5522a7fda92e16115ac08ef1a2d3def67d`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
+- CI 会在 `.github/workflows/validate-skills.yml` 中 checkout CLI `0.1.5` 的不可变 merge/tag commit `2cef1c85417387ee245d5672f2cf403fb37f602c`，用 frozen pnpm lockfile 安装两个仓库并构建 CLI，然后运行同一套校验。
 
 ## 执行说明
 
@@ -149,10 +149,10 @@ tiangong-lca auth status --json
 
 当前约定：
 
-- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.3 tiangong-lca`；不会自动发现任何 sibling 目录
+- skill wrapper 默认使用精确版本的已发布 CLI：`pnpm dlx --package=@tiangong-lca/cli@0.1.5 tiangong-lca`；不会自动发现任何 sibling 目录
 - 本地执行只能通过 `--cli-dir` / `TIANGONG_LCA_CLI_DIR` 显式启用
 - 使用 `--published-cli` 可覆盖本地 CLI 环境并显式执行 published-package case；嵌套 wrapper 会继续传播该选择
-- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.3`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
+- 本地 CLI override 必须是带精确 Node/pnpm engines 和 v9 `pnpm-lock.yaml` 的 `@tiangong-lca/cli@0.1.5`；本地 build 过期时先执行 `pnpm install --frozen-lockfile`，再执行 `pnpm run build`
 - 本地 pre-push hook 会先验证显式 local checkout 的 package/lock evidence，再允许 install 或 build
 - launcher 只用 argv 数组并固定 `shell: false`，因此带空格路径保持为单个参数，并原样保留子进程 exit/stdout/stderr
 - 对远端 process QA snapshot，优先使用 `tiangong-lca process list --json` 再配合 `qa process --rows-file ...`，不再鼓励临时 bridge 脚本
