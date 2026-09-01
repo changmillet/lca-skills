@@ -50,35 +50,12 @@ function normalizeArgs(rawArgs) {
   };
 }
 
-function encodeUserApiKey(email, password) {
-  return Buffer.from(
-    JSON.stringify({
-      email,
-      password,
-    }),
-    "utf8",
-  ).toString("base64");
-}
-
 function writeJson(filePath, value) {
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
 function readJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
-}
-
-function readRequestBody(request) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    request.on("data", (chunk) => {
-      chunks.push(Buffer.from(chunk));
-    });
-    request.on("end", () => {
-      resolve(Buffer.concat(chunks).toString("utf8"));
-    });
-    request.on("error", reject);
-  });
 }
 
 async function run(command, args, options = {}) {
@@ -177,28 +154,18 @@ async function withFixtureServer(rowsByKey, runFixture) {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
 
-    if (
-      url.pathname.endsWith("/auth/v1/token") &&
-      url.searchParams.get("grant_type") === "password"
-    ) {
-      await readRequestBody(request);
+    if (url.pathname.endsWith("/auth/v1/user")) {
+      request.resume();
       response.writeHead(200, {
         "content-type": "application/json",
         connection: "close",
       });
       response.end(
         JSON.stringify({
-          access_token: "fixture-access-token",
-          refresh_token: "fixture-refresh-token",
-          token_type: "bearer",
-          expires_in: 3600,
-          expires_at: 4_102_444_800,
-          user: {
-            id: "fixture-user",
-            aud: "authenticated",
-            role: "authenticated",
-            email: "fixture@example.com",
-          },
+          id: "11111111-1111-4111-8111-111111111111",
+          aud: "authenticated",
+          role: "authenticated",
+          email: "fixture@example.com",
         }),
       );
       return;
@@ -261,7 +228,7 @@ async function main() {
     "flow-a@01.00.000": {
       id: "flow-a",
       version: "01.00.000",
-      user_id: "fixture-user",
+      user_id: "11111111-1111-4111-8111-111111111111",
       state_code: 100,
       modified_at: "2026-04-06T00:00:00.000Z",
       json: makeFlowDataset({
@@ -274,7 +241,7 @@ async function main() {
     "flow-b@01.00.000": {
       id: "flow-b",
       version: "01.00.000",
-      user_id: "fixture-user",
+      user_id: "11111111-1111-4111-8111-111111111111",
       state_code: 100,
       modified_at: "2026-04-06T00:00:01.000Z",
       json: makeFlowDataset({
@@ -337,7 +304,8 @@ async function main() {
       const env = withCliRuntimeEnv({
         ...process.env,
         TIANGONG_LCA_API_BASE_URL: `http://127.0.0.1:${port}/functions/v1`,
-        TIANGONG_LCA_API_KEY: encodeUserApiKey("fixture@example.com", "fixture-password"),
+        TIANGONG_LCA_AUTH_MODE: "access-token",
+        TIANGONG_LCA_ACCESS_TOKEN: "fixture-short-lived-access-token",
         TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY: "fixture-publishable-key",
         TIANGONG_LCA_DISABLE_SESSION_CACHE: "1",
       }, cliDir);
