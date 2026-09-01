@@ -34,12 +34,13 @@ Runtime:
 
 Required env for remote refresh:
   TIANGONG_LCA_API_BASE_URL
-  TIANGONG_LCA_API_KEY
   TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY
+  TIANGONG_LCA_OAUTH_CLIENT_ID and a prior tiangong-lca auth login
 
 Notes:
-  - this wrapper is CLI-only; it does not own Supabase auth, password parsing, or schema validation logic
-  - do not pass SUPABASE_EMAIL, SUPABASE_PASSWORD, or SUPABASE_ACCESS_TOKEN to the skill layer
+  - this wrapper is CLI-only; it does not own Supabase auth, session files, or schema validation logic
+  - headless execution may use only an orchestrator-injected short-lived TIANGONG_LCA_ACCESS_TOKEN
+  - do not pass credentials, authorization codes, or tokens through argv, prompts, logs, or artifacts
   - keep --out-dir explicit so manifests, progress, blockers, and reports stay reproducible
 
 Examples:

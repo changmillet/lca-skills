@@ -36,9 +36,9 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-08-31
-lastReviewedCommit: 630c0db30388e905b6eac3b238b8d46a8db1803c
-lastReviewedNote: "Reviewed for Skills #87: active remote skills use OAuth handoff and every current wrapper/CI/local-override contract pins immutable CLI 0.1.6 merge 72e27f3; authentication remains CLI-owned."
+lastReviewedAt: 2026-09-01
+lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
+lastReviewedNote: "Reviewed for Skills #89: active remote skills use OAuth-only handoff and every wrapper/CI/local-override contract pins CLI 0.1.7 merge cb5be8f; legacy fixtures and rollback wording are removed."
 related:
   - .docpact/config.yaml
   - docs/agents/repo-architecture.md
@@ -54,7 +54,7 @@ related:
 
 Review note, 2026-06-02: dataset import curation queue guidance remains skill instruction only; CLI and Foundry own queue construction, curation package assembly, and deterministic gates.
 Review note, 2026-08-29: CLI-backed package execution is pinned to Node 24.19.0, pnpm 11.24.0, and published CLI 0.1.3; external Vercel `npx skills` commands remain outside this package-manager migration.
-Review note, 2026-09-01: Skills #87 advances the active wrapper contract to published OAuth-capable CLI 0.1.6 and immutable release merge `72e27f3421937d8c07dcad77372fb3f548436e44`; no wrapper floats through `latest`, discovers a sibling checkout, or owns authentication logic.
+Review note, 2026-09-01: Skills #89 advances the active wrapper contract to published OAuth-only CLI 0.1.7 and immutable release merge `cb5be8f1e209f69570f4c7ef4ef29d61af52eed7`; no wrapper floats through `latest`, discovers a sibling checkout, owns authentication logic, or provisions a password-encoded credential.
 
 ## AI Load Order
 
@@ -106,7 +106,7 @@ Route those tasks to:
 - Source-evidence import skills may instruct agents to resolve external research skills with `npx skills`, but this repository should not mirror or pin those external skill packages.
 - `external-dataset-curated-import`, `source-evidence-dataset-development`, and `dataset-rls-maintenance` are top-level workflow skills only; executable conversion, queue state, validation, QA, write/delete/redo, and verify behavior stays in CLI/Foundry-owned commands.
 - Dataset maintenance under user RLS must use CLI-owned maintenance plans and readback verification. Skills must not add direct Supabase CRUD, service-role paths, or broad delete filters.
-- Node package execution is pinned to Node `24.19.0` and pnpm `11.24.0`; the default runtime is the exact published `@tiangong-lca/cli@0.1.6` and must never float through `@latest`.
+- Node package execution is pinned to Node `24.19.0` and pnpm `11.24.0`; the default runtime is the exact published `@tiangong-lca/cli@0.1.7` and must never float through `@latest`.
 - Never auto-discover or execute a sibling CLI checkout. Local execution is opt-in only through `--cli-dir` or `TIANGONG_LCA_CLI_DIR`; `--published-cli` explicitly overrides a local CLI environment.
 - Local CLI checkouts selected by wrappers must match the pinned CLI package/engine/lockfile evidence. When their source is newer than `dist/src/main.js`, wrappers install with `pnpm install --frozen-lockfile` before `pnpm run build`; wrappers should still keep the CLI command surface in `tiangong-lca-cli`.
 - CLI child processes use authoritative argv arrays with `shell: false` and preserve child exit/stdout/stderr.
@@ -117,7 +117,7 @@ Route those tasks to:
 ## Hard Boundaries
 
 - Do not add private business runtimes, MCP transports, or unrelated orchestration layers inside a skill when the behavior should live in the CLI or an owning repo
-- Do not add legacy API-key flags, API-key assignment examples, or raw Authorization bearer examples to active skill instructions. Legacy bootstrap remains a CLI-owned rollback boundary only.
+- Do not add legacy API-key flags, API-key assignment examples, or raw Authorization bearer examples to active skill instructions. The CLI has no legacy bootstrap or rollback mode.
 - Do not vendor external runtime skills from `tiangong-ai/skills`; consuming projects should resolve them with `npx skills` and record the resolved upstream ref in task artifacts
 - Do not leave a changed `SKILL.md` without updating the paired `agents/openai.yaml` when the invocation contract changed
 - Do not treat a merged repo PR here as workspace-delivery complete if the root repo still needs a submodule bump
@@ -140,4 +140,4 @@ Install the versioned local hook once per checkout:
 ./scripts/install-git-hooks.sh
 ```
 
-The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It validates Node `24.19.0` / pnpm `11.24.0` and installs Skills from its frozen lockfile. The hook defaults to exact published CLI `0.1.6`; when `TIANGONG_LCA_CLI_DIR` is explicitly set, it validates that checkout's package/name/version/engine/lock evidence before any local install or build. It then runs `pnpm prepush:gate`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts. The GitHub `validate-skills` workflow is manual-dispatch only.
+The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It validates Node `24.19.0` / pnpm `11.24.0` and installs Skills from its frozen lockfile. The hook defaults to exact published CLI `0.1.7`; when `TIANGONG_LCA_CLI_DIR` is explicitly set, it validates that checkout's package/name/version/engine/lock evidence before any local install or build. It then runs `pnpm prepush:gate`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts. The GitHub `validate-skills` workflow is manual-dispatch only.

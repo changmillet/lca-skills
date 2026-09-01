@@ -18,9 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-08-31
-lastReviewedCommit: 630c0db30388e905b6eac3b238b8d46a8db1803c
-lastReviewedNote: "Reviewed for Skills #87: active remote workflows use OAuth handoff and exact published CLI 0.1.6 / immutable merge 72e27f3 across wrappers, CI, and local overrides."
+lastReviewedAt: 2026-09-01
+lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
+lastReviewedNote: "Reviewed for Skills #89: active remote workflows use OAuth-only handoff and exact published CLI 0.1.7 / immutable merge cb5be8f across wrappers, CI, local overrides, and headless fixtures."
 ---
 
 # Tiangong LCA Skills
@@ -120,7 +120,7 @@ tiangong-lca auth status --json
 
 If the result is `login-required`, stop the agent workflow and let the human user run `tiangong-lca auth login` in a trusted terminal. Skills and agents must never request a username, password, authorization code, access token, refresh token, or the deprecated encoded API key. Use `tiangong-lca auth doctor-auth --json` before account-sensitive reads or commits.
 
-Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client context. Approved headless automation may use `TIANGONG_LCA_AUTH_MODE=access-token` with one short-lived `TIANGONG_LCA_ACCESS_TOKEN` injected by its orchestrator; the token must never enter argv, prompts, logs, or artifacts. Legacy API-key mode is a rollback boundary owned by the CLI, not an active skill setup path.
+Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client context. Approved headless automation may use `TIANGONG_LCA_AUTH_MODE=access-token` with one short-lived `TIANGONG_LCA_ACCESS_TOKEN` injected by its orchestrator; the token must never enter argv, prompts, logs, or artifacts. No legacy API-key mode exists.
 
 ## Validation
 
@@ -141,7 +141,7 @@ Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/clie
   ```bash
   pnpm validate lifecycleinventory-qa process-hybrid-search
   ```
-- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out immutable CLI `0.1.6` merge/tag commit `72e27f3421937d8c07dcad77372fb3f548436e44`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
+- CI runs the same validation in `.github/workflows/validate-skills.yml` after checking out immutable CLI `0.1.7` merge/tag commit `cb5be8f1e209f69570f4c7ef4ef29d61af52eed7`, installing both repositories with frozen pnpm lockfiles, and building the CLI.
 
 ## Execution note
 
@@ -149,10 +149,10 @@ Skills in this repository are expected to be thin wrappers over the unified `tia
 
 Current rules:
 
-- wrappers default to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.6 tiangong-lca`; sibling directories are never auto-discovered
+- wrappers default to the exact published CLI through `pnpm dlx --package=@tiangong-lca/cli@0.1.7 tiangong-lca`; sibling directories are never auto-discovered
 - local execution is opt-in only through `--cli-dir` or `TIANGONG_LCA_CLI_DIR`
 - use `--published-cli` to override a local CLI environment for an explicit published-package case; nested wrappers propagate that selection
-- local CLI overrides must identify `@tiangong-lca/cli@0.1.6` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
+- local CLI overrides must identify `@tiangong-lca/cli@0.1.7` with its exact Node/pnpm engines and a v9 `pnpm-lock.yaml`; stale local builds are installed with `pnpm install --frozen-lockfile` before `pnpm run build`
 - the local pre-push hook validates CLI package and lock evidence before it installs or builds an explicitly selected local checkout
 - launcher execution uses argv arrays with `shell: false`, so paths containing spaces remain one argument and child exit/stdout/stderr are preserved
 - for remote process QA snapshots, prefer `tiangong-lca process list --json` followed by `qa process --rows-file ...` instead of ad hoc bridge scripts
