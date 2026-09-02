@@ -36,9 +36,9 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: active remote skills use OAuth-only handoff and every wrapper/CI/local-override contract pins CLI 0.1.7 merge cb5be8f; legacy fixtures and rollback wording are removed."
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: 3206f8705485a0979d999ccfb320f68ec8a6df97
+lastReviewedNote: "Reviewed for Skills #91: verified published CLI 0.1.8 / b470198 is pinned across wrappers, CI and docs; independently installed hybrid packages retain a byte-identical launcher and CLI-owned Production auth."
 related:
   - .docpact/config.yaml
   - docs/agents/repo-architecture.md
@@ -102,11 +102,13 @@ Route those tasks to:
 - If a capability is missing, add it to `tiangong-lca-cli` first, then update the skill wrapper here
 - Current-account dataset review skills may orchestrate frozen local inputs through public CLI commands, but must not own direct database access, credential parsing, or private account runtime logic.
 - Active remote skills must check `tiangong-lca auth status --json`, hand `auth login` to a human-controlled trusted terminal when required, and use `auth doctor-auth` before account-sensitive commits. They never collect or emit usernames, passwords, authorization codes, tokens, or legacy API keys.
+- Official Production public configuration belongs to the CLI and needs no Skills env setup. Only complete custom project URL/key/client/callback tuples override it; headless tokens require an explicit destination/key and must not implicitly select Production.
+- The three independently installable hybrid-search packages carry byte-identical `scripts/lib/cli-launcher.mjs` bundles inside their own directories. The root launcher remains the only source authority; update the bundles together and retain the isolated copied-package plus byte-equality regression. Do not add authentication or transport logic to those bundles.
 - Headless tokens are orchestrator-injected, short-lived, and absent from argv/prompts/logs/artifacts. Multi-account work uses a distinct private `TIANGONG_LCA_SESSION_FILE` per account/project/client and preserves expected identity evidence.
 - Source-evidence import skills may instruct agents to resolve external research skills with `npx skills`, but this repository should not mirror or pin those external skill packages.
 - `external-dataset-curated-import`, `source-evidence-dataset-development`, and `dataset-rls-maintenance` are top-level workflow skills only; executable conversion, queue state, validation, QA, write/delete/redo, and verify behavior stays in CLI/Foundry-owned commands.
 - Dataset maintenance under user RLS must use CLI-owned maintenance plans and readback verification. Skills must not add direct Supabase CRUD, service-role paths, or broad delete filters.
-- Node package execution is pinned to Node `24.19.0` and pnpm `11.24.0`; the default runtime is the exact published `@tiangong-lca/cli@0.1.7` and must never float through `@latest`.
+- Node package execution is pinned to Node `24.19.0` and pnpm `11.24.0`; the default runtime is the exact published `@tiangong-lca/cli@0.1.8` and must never float through `@latest`.
 - Never auto-discover or execute a sibling CLI checkout. Local execution is opt-in only through `--cli-dir` or `TIANGONG_LCA_CLI_DIR`; `--published-cli` explicitly overrides a local CLI environment.
 - Local CLI checkouts selected by wrappers must match the pinned CLI package/engine/lockfile evidence. When their source is newer than `dist/src/main.js`, wrappers install with `pnpm install --frozen-lockfile` before `pnpm run build`; wrappers should still keep the CLI command surface in `tiangong-lca-cli`.
 - CLI child processes use authoritative argv arrays with `shell: false` and preserve child exit/stdout/stderr.
@@ -140,4 +142,4 @@ Install the versioned local hook once per checkout:
 ./scripts/install-git-hooks.sh
 ```
 
-The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It validates Node `24.19.0` / pnpm `11.24.0` and installs Skills from its frozen lockfile. The hook defaults to exact published CLI `0.1.7`; when `TIANGONG_LCA_CLI_DIR` is explicitly set, it validates that checkout's package/name/version/engine/lock evidence before any local install or build. It then runs `pnpm prepush:gate`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts. The GitHub `validate-skills` workflow is manual-dispatch only.
+The `pre-push` hook runs `scripts/docpact-gate.sh`, which delegates CLI lookup to `scripts/docpact` and performs strict config validation plus enforced lint before the push leaves the machine. It validates Node `24.19.0` / pnpm `11.24.0` and installs Skills from its frozen lockfile. The hook defaults to exact published CLI `0.1.8`; when `TIANGONG_LCA_CLI_DIR` is explicitly set, it validates that checkout's package/name/version/engine/lock evidence before any local install or build. It then runs `pnpm prepush:gate`. The wrapper checks `DOCPACT_BIN`, Cargo install locations, Homebrew install locations, and then `PATH`, so local agent shells should not fail only because bare `docpact` is unavailable. The default comparison base is `origin/main`. Override it for unusual stacks with `DOCPACT_BASE_REF=<ref>` or `scripts/docpact-gate.sh --base <ref>`. The gate writes its detailed report to a temporary file so normal pushes do not create `.docpact/runs/` artifacts. The GitHub `validate-skills` workflow is manual-dispatch only.

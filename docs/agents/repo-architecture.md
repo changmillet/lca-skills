@@ -29,9 +29,9 @@ checkPaths:
   - scripts/lib/cli-launcher.mjs
   - package.json
   - pnpm-lock.yaml
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: thin OAuth-only orchestration pins published CLI 0.1.7 and immutable CI merge cb5be8f; password/bootstrap fixtures and rollback wording are absent from Skills."
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: 3206f8705485a0979d999ccfb320f68ec8a6df97
+lastReviewedNote: "Reviewed for Skills #91: verified published CLI 0.1.8 / b470198 is pinned across wrappers, CI and docs; independently installed hybrid packages retain a byte-identical launcher and CLI-owned Production auth."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -72,11 +72,13 @@ If a skill needs a capability that does not exist in the CLI, add the capability
 
 Remote authentication follows the same boundary. Skills may invoke `auth status`, instruct a human to run browser `auth login`, and require live redacted `doctor-auth`, but they never inspect session files or handle passwords, codes, or tokens. Explicit headless and multi-account configuration remain CLI/orchestrator responsibilities. The validator rejects password-equivalent invocation examples in active Markdown.
 
+Official Production's public profile is owned and bundled by the CLI, not copied into Skills. A first install needs human browser login, not dashboard/client-ID setup. Complete custom environments and explicitly targeted headless tokens remain separate. The flow/process/lifecyclemodel hybrid-search packages bundle the root launcher byte-for-byte at their own `scripts/lib/cli-launcher.mjs` so copied individual installations do not import outside their package. The installed-consumer test checks bundle equality, a real published-CLI dry-run, no local checkout/session creation, and rejection of incomplete custom destinations.
+
 If a Foundry/source-evidence workflow needs an external Tiangong KB research skill, consume it with `npx skills` at runtime and record the resolved upstream ref in the task workspace. Do not copy the external skill package into this repository unless ownership is intentionally transferred.
 
 Current-account dataset review is owned here only as a skill package and wrapper contract. Its durable runtime behavior belongs in public `tiangong-lca` CLI commands such as dataset validation, reference rewriting, lifecyclemodel save-draft, and lifecyclemodel graph export.
 
-The shared wrapper launcher defaults to pinned published `@tiangong-lca/cli@0.1.7` and never discovers sibling directories. CI binds immutable release merge `cb5be8f1e209f69570f4c7ef4ef29d61af52eed7`. An explicit `--cli-dir` or `TIANGONG_LCA_CLI_DIR` may select an exact matching local checkout; only after package/engine/lock evidence passes may the launcher prepare it with `pnpm install --frozen-lockfile` and `pnpm run build` when source files are newer than `dist/src/main.js`. All execution stays argv-authoritative with `shell: false`, using native `pnpm.exe` on Windows. This is a developer-experience guard for stale local checkouts, not permission for skills to duplicate CLI implementation.
+The shared wrapper launcher defaults to pinned published `@tiangong-lca/cli@0.1.8` and never discovers sibling directories. CI binds immutable release merge `b4701984b4a86fe4680fa5995d0a0b6753dbdfd6`. An explicit `--cli-dir` or `TIANGONG_LCA_CLI_DIR` may select an exact matching local checkout; only after package/engine/lock evidence passes may the launcher prepare it with `pnpm install --frozen-lockfile` and `pnpm run build` when source files are newer than `dist/src/main.js`. All execution stays argv-authoritative with `shell: false`, using native `pnpm.exe` on Windows. This is a developer-experience guard for stale local checkouts, not permission for skills to duplicate CLI implementation.
 
 ## Integration Semantics
 

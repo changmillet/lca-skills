@@ -29,9 +29,9 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: validation proves exact published/local CLI 0.1.7 plus immutable CI merge cb5be8f, OAuth/headless fixtures, and zero password-equivalent invocation examples."
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: 3206f8705485a0979d999ccfb320f68ec8a6df97
+lastReviewedNote: "Reviewed for Skills #91: verified published CLI 0.1.8 / b470198 is pinned across wrappers, CI and docs; independently installed hybrid packages retain a byte-identical launcher and CLI-owned Production auth."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -50,7 +50,7 @@ pnpm prepush:gate
 Review note, 2026-06-04: external runtime source-evidence skill guidance remains documentation and instruction-layer work. The new top-level Foundry scenario skills are included in `scripts/validate-skills.mjs`; no new runtime validator path is required because the external Tiangong KB skill is not checked into this repository.
 Review note, 2026-08-25: validation now covers the immutable pnpm/Node/CLI consumer contract, exact published and local CLI cases, argv-only dispatch, and live CLI help checks for every flow-governance wrapper manifest route.
 
-The local `pre-push` hook runs docpact first, validates Node `24.19.0` / pnpm `11.24.0`, installs Skills from its frozen lockfile, and defaults to published CLI `0.1.7`. A local `tiangong-lca-cli` is installed/built only when explicitly selected and only after package/engine/lock evidence succeeds. The hook then runs the repository test/validation gate. The GitHub `validate-skills` workflow is manual-dispatch only, so ordinary pushes rely on the local gate.
+The local `pre-push` hook runs docpact first, validates Node `24.19.0` / pnpm `11.24.0`, installs Skills from its frozen lockfile, and defaults to published CLI `0.1.8`. A local `tiangong-lca-cli` is installed/built only when explicitly selected and only after package/engine/lock evidence succeeds. The hook then runs the repository test/validation gate. The GitHub `validate-skills` workflow is manual-dispatch only, so ordinary pushes rely on the local gate.
 
 You may pass one or more skill directories to validate only the touched skill packages.
 
@@ -60,11 +60,12 @@ You may pass one or more skill directories to validate only the touched skill pa
 - Wrapper contract changes require checking the paired `agents/openai.yaml` and `SKILL.md` together.
 - Validation-script or test changes require running the full `pnpm prepush:gate` command when feasible.
 - New CLI-backed skills must be added to the default validation list when they are intended to ship as part of the standard checked-in skill set.
-- Wrapper-launcher changes require `pnpm test:launcher`, the pnpm consumer contract tests, an exact published `@tiangong-lca/cli@0.1.7` help case, and full skill validation against frozen, built CLI merge `cb5be8f1e209f69570f4c7ef4ef29d61af52eed7`.
+- Wrapper-launcher changes require `pnpm test:launcher`, the pnpm consumer contract tests, an exact published `@tiangong-lca/cli@0.1.8` help case, and full skill validation against frozen, built CLI merge `b4701984b4a86fe4680fa5995d0a0b6753dbdfd6`.
 - Launcher filesystem fixtures and expected paths must use the host `node:path` implementation. A test that passes a synthetic `platform` may validate executable dispatch, but must not combine that target platform with host-resolved fake paths.
 - Repo-wide Markdown guards inventory only root-repository Git-tracked `*.md` paths through argv-based `git -C <root> ls-files -z`. Fixture and validator Git children remove inherited repository-location `GIT_*` variables first, so hook context cannot redirect their index or worktree; untracked or nested CI checkouts are not part of the Skills documentation contract.
 - Documentation-governance changes require docpact validation.
 - Remote-auth instruction changes require `test/oauth-skill-contract.test.mjs`, the repository-wide password-equivalent doc guard, validation against the exact OAuth-capable local CLI, and the full `pnpm prepush:gate` once the published CLI pin is updated.
+- First-install bootstrap changes require `test/installed-hybrid-bootstrap.test.mjs`: copy each of the three hybrid-search skill directories into a fresh isolated directory, clear public auth/CLI overrides, run the real pinned published wrapper without login, inspect its Production dry-run, reject an incomplete custom URL, and prove no session file or outside repository launcher is used. Bundled launchers must match the root authority byte-for-byte. A separate human-controlled fresh browser login plus live redacted doctor/read-only search remains release acceptance, never a repository test credential.
 
 ## Docpact Validation
 
