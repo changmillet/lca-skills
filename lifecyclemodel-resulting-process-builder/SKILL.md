@@ -61,7 +61,7 @@ Referenced process datasets may be provided via:
 - `process_sources.process_json_files[]`
 - auto-detected sibling directories such as `processes/` or `*-processes/` when using `--model-file`
 
-Canonical request files should use `process_sources.allow_remote_lookup`, but the normal skill flow is still local-first and should keep it `false` unless deterministic remote process lookup is explicitly needed. When `process_sources.allow_remote_lookup=true`, configure the API base URL, Supabase publishable key, and public OAuth client ID; run `tiangong-lca auth status --json` first. If login is required, stop and ask the human to run `auth login` in a trusted terminal. Never pass a username, password, credential, code, token, or legacy API key through CLI flags, prompts, logs, or artifacts; keep account session files separate.
+Canonical request files should use `process_sources.allow_remote_lookup`, but the normal skill flow is still local-first and should keep it `false` unless deterministic remote process lookup is explicitly needed. When `process_sources.allow_remote_lookup=true`, official Production uses the CLI-owned public profile without env setup; only custom environments require a complete matching URL/publishable-key/public-client tuple and registered callback. Run `tiangong-lca auth status --json` first. If login is required, stop and ask the human to run `auth login` in a trusted terminal. Never pass a username, password, credential, code, token, or legacy API key through CLI flags, prompts, logs, or artifacts; keep account session files separate.
 
 ## Outputs
 
