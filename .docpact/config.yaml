@@ -1,10 +1,11 @@
 version: 1
 layout: repo
+# Release proof, 2026-09-02: Skills #91 pins verified CLI 0.1.8 / b4701984b4a86fe4680fa5995d0a0b6753dbdfd6; all three bundled launchers must remain byte-identical to their root authority.
 # Review note, 2026-09-02: Skills #91 adds self-contained, byte-checked launcher bundles for the three hybrid-search packages and CLI-owned Production bootstrap guidance under existing skill/validation/doc routes; no auth runtime ownership moves into Skills.
 # Review note, 2026-08-25: the existing validation-and-packaging contract now governs the pinned Node/pnpm package, frozen lockfile, shared CLI launcher/toolchain checks, and validation workflow; no separate rule was needed.
 # Review note, 2026-09-01: Skills #89 advances every active shared/default wrapper, immutable CI checkout, local override contract, fixture, and current skill reference to OAuth-only CLI 0.1.7 / merge cb5be8f1e209f69570f4c7ef4ef29d61af52eed7. Existing validation, packaging, skill, and documentation routes own the change; no ownership or rule split is required.
 lastReviewedAt: "2026-09-02"
-lastReviewedCommit: "f34ab2442a8440e87c3810c11cccad325a19d681"
+lastReviewedCommit: "3206f8705485a0979d999ccfb320f68ec8a6df97"
 
 catalog:
   repos:

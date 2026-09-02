@@ -30,8 +30,8 @@ checkPaths:
   - package.json
   - pnpm-lock.yaml
 lastReviewedAt: 2026-09-02
-lastReviewedCommit: f34ab2442a8440e87c3810c11cccad325a19d681
-lastReviewedNote: "Reviewed for Skills #91: independently installed hybrid-search packages include a byte-checked launcher and use CLI-owned zero-config Production OAuth; custom/headless isolation and the verified release pin remain required."
+lastReviewedCommit: 3206f8705485a0979d999ccfb320f68ec8a6df97
+lastReviewedNote: "Reviewed for Skills #91: verified published CLI 0.1.8 / b470198 is pinned across wrappers, CI and docs; independently installed hybrid packages retain a byte-identical launcher and CLI-owned Production auth."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -78,7 +78,7 @@ If a Foundry/source-evidence workflow needs an external Tiangong KB research ski
 
 Current-account dataset review is owned here only as a skill package and wrapper contract. Its durable runtime behavior belongs in public `tiangong-lca` CLI commands such as dataset validation, reference rewriting, lifecyclemodel save-draft, and lifecyclemodel graph export.
 
-The shared wrapper launcher defaults to pinned published `@tiangong-lca/cli@0.1.7` and never discovers sibling directories. CI binds immutable release merge `cb5be8f1e209f69570f4c7ef4ef29d61af52eed7`. An explicit `--cli-dir` or `TIANGONG_LCA_CLI_DIR` may select an exact matching local checkout; only after package/engine/lock evidence passes may the launcher prepare it with `pnpm install --frozen-lockfile` and `pnpm run build` when source files are newer than `dist/src/main.js`. All execution stays argv-authoritative with `shell: false`, using native `pnpm.exe` on Windows. This is a developer-experience guard for stale local checkouts, not permission for skills to duplicate CLI implementation.
+The shared wrapper launcher defaults to pinned published `@tiangong-lca/cli@0.1.8` and never discovers sibling directories. CI binds immutable release merge `b4701984b4a86fe4680fa5995d0a0b6753dbdfd6`. An explicit `--cli-dir` or `TIANGONG_LCA_CLI_DIR` may select an exact matching local checkout; only after package/engine/lock evidence passes may the launcher prepare it with `pnpm install --frozen-lockfile` and `pnpm run build` when source files are newer than `dist/src/main.js`. All execution stays argv-authoritative with `shell: false`, using native `pnpm.exe` on Windows. This is a developer-experience guard for stale local checkouts, not permission for skills to duplicate CLI implementation.
 
 ## Integration Semantics
 
