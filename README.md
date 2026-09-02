@@ -18,9 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: active remote workflows use OAuth-only handoff and exact published CLI 0.1.7 / immutable merge cb5be8f across wrappers, CI, local overrides, and headless fixtures."
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: f34ab2442a8440e87c3810c11cccad325a19d681
+lastReviewedNote: "Reviewed for Skills #91: independently installed hybrid-search packages include a byte-checked launcher and use CLI-owned zero-config Production OAuth; custom/headless isolation and the verified release pin remain required."
 ---
 
 # Tiangong LCA Skills
@@ -112,15 +112,17 @@ Consuming projects should record the resolved upstream ref and command in task a
 
 ## Remote authentication
 
-Remote skills use the CLI-owned Supabase OAuth session. Configure `TIANGONG_LCA_API_BASE_URL`, `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`, and the environment-specific public `TIANGONG_LCA_OAUTH_CLIENT_ID`, then run:
+Remote skills use the CLI-owned Supabase OAuth session. Official Production requires no public environment setup or dashboard/client-ID handoff. The published CLI owns its public URL/key/client/callback profile; Skills do not copy it. Start with:
 
 ```bash
-tiangong-lca auth status --json
+pnpm dlx --package=@tiangong-lca/cli@0.1.8 tiangong-lca auth status --json
 ```
 
 If the result is `login-required`, stop the agent workflow and let the human user run `tiangong-lca auth login` in a trusted terminal. Skills and agents must never request a username, password, authorization code, access token, refresh token, or the deprecated encoded API key. Use `tiangong-lca auth doctor-auth --json` before account-sensitive reads or commits.
 
-Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client context. Approved headless automation may use `TIANGONG_LCA_AUTH_MODE=access-token` with one short-lived `TIANGONG_LCA_ACCESS_TOKEN` injected by its orchestrator; the token must never enter argv, prompts, logs, or artifacts. No legacy API-key mode exists.
+Only custom environments need a complete matching `TIANGONG_LCA_API_BASE_URL`, `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`, and registered `TIANGONG_LCA_OAUTH_CLIENT_ID` plus its exact callback. Partial custom settings must not inherit Production fields. Use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client context. Approved headless automation must explicitly set its destination/key and `TIANGONG_LCA_AUTH_MODE=access-token` before the orchestrator injects one short-lived `TIANGONG_LCA_ACCESS_TOKEN`; a token alone never selects Production and must never enter argv, prompts, logs, or artifacts. No legacy API-key mode exists.
+
+The three hybrid-search skill folders are independently installable: each includes the same byte-checked launcher and its example input, without a Skills/CLI/Data Foundry checkout. The CLI remains the authentication authority.
 
 ## Validation
 

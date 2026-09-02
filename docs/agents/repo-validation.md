@@ -29,9 +29,9 @@ checkPaths:
   - scripts/docpact
   - scripts/docpact-gate.sh
   - scripts/install-git-hooks.sh
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: validation proves exact published/local CLI 0.1.7 plus immutable CI merge cb5be8f, OAuth/headless fixtures, and zero password-equivalent invocation examples."
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: f34ab2442a8440e87c3810c11cccad325a19d681
+lastReviewedNote: "Reviewed for Skills #91: independently installed hybrid-search packages include a byte-checked launcher and use CLI-owned zero-config Production OAuth; custom/headless isolation and the verified release pin remain required."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -65,6 +65,7 @@ You may pass one or more skill directories to validate only the touched skill pa
 - Repo-wide Markdown guards inventory only root-repository Git-tracked `*.md` paths through argv-based `git -C <root> ls-files -z`. Fixture and validator Git children remove inherited repository-location `GIT_*` variables first, so hook context cannot redirect their index or worktree; untracked or nested CI checkouts are not part of the Skills documentation contract.
 - Documentation-governance changes require docpact validation.
 - Remote-auth instruction changes require `test/oauth-skill-contract.test.mjs`, the repository-wide password-equivalent doc guard, validation against the exact OAuth-capable local CLI, and the full `pnpm prepush:gate` once the published CLI pin is updated.
+- First-install bootstrap changes require `test/installed-hybrid-bootstrap.test.mjs`: copy each of the three hybrid-search skill directories into a fresh isolated directory, clear public auth/CLI overrides, run the real pinned published wrapper without login, inspect its Production dry-run, reject an incomplete custom URL, and prove no session file or outside repository launcher is used. Bundled launchers must match the root authority byte-for-byte. A separate human-controlled fresh browser login plus live redacted doctor/read-only search remains release acceptance, never a repository test credential.
 
 ## Docpact Validation
 

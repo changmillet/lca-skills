@@ -29,9 +29,9 @@ checkPaths:
   - scripts/lib/cli-launcher.mjs
   - package.json
   - pnpm-lock.yaml
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: thin OAuth-only orchestration pins published CLI 0.1.7 and immutable CI merge cb5be8f; password/bootstrap fixtures and rollback wording are absent from Skills."
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: f34ab2442a8440e87c3810c11cccad325a19d681
+lastReviewedNote: "Reviewed for Skills #91: independently installed hybrid-search packages include a byte-checked launcher and use CLI-owned zero-config Production OAuth; custom/headless isolation and the verified release pin remain required."
 related:
   - AGENTS.md
   - .docpact/config.yaml
@@ -71,6 +71,8 @@ Top-level Foundry scenario skills are allowed in this repository when they only 
 If a skill needs a capability that does not exist in the CLI, add the capability to `tiangong-lca-cli` first and keep the skill as a thin wrapper over that CLI surface.
 
 Remote authentication follows the same boundary. Skills may invoke `auth status`, instruct a human to run browser `auth login`, and require live redacted `doctor-auth`, but they never inspect session files or handle passwords, codes, or tokens. Explicit headless and multi-account configuration remain CLI/orchestrator responsibilities. The validator rejects password-equivalent invocation examples in active Markdown.
+
+Official Production's public profile is owned and bundled by the CLI, not copied into Skills. A first install needs human browser login, not dashboard/client-ID setup. Complete custom environments and explicitly targeted headless tokens remain separate. The flow/process/lifecyclemodel hybrid-search packages bundle the root launcher byte-for-byte at their own `scripts/lib/cli-launcher.mjs` so copied individual installations do not import outside their package. The installed-consumer test checks bundle equality, a real published-CLI dry-run, no local checkout/session creation, and rejection of incomplete custom destinations.
 
 If a Foundry/source-evidence workflow needs an external Tiangong KB research skill, consume it with `npx skills` at runtime and record the resolved upstream ref in the task workspace. Do not copy the external skill package into this repository unless ownership is intentionally transferred.
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   normalizeCliRuntimeArgs,
   runTiangongCommand,
-} from '../../scripts/lib/cli-launcher.mjs';
+} from './lib/cli-launcher.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.resolve(scriptDir, '..');

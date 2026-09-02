@@ -1,22 +1,28 @@
 # Env (caller side)
 
-- CLI path override: `TIANGONG_LCA_CLI_DIR`
-- Default CLI runtime: the exact package pinned by `scripts/lib/cli-launcher.mjs`
-- OAuth client variable: `TIANGONG_LCA_OAUTH_CLIENT_ID`
-- Supabase public-key variable: `TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`
-- Base URL variable: `TIANGONG_LCA_API_BASE_URL`
-- Region variable: `TIANGONG_LCA_REGION`
-- Default endpoint remains `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/process_hybrid_search`
+Official Production uses the public profile bundled by the pinned CLI; no `.env`, dashboard access, or separately supplied client ID is required. Skills do not copy Production URL/key/client values. The CLI resolves `/process_hybrid_search`; use `--dry-run` to inspect the planned endpoint without network access.
 
-Wrapper behavior:
+## Custom environments only
 
-- the Node `.mjs` wrapper runs the published CLI by default and injects the example `--input` file when none is provided
-- set `TIANGONG_LCA_CLI_DIR` or pass `--cli-dir` only when you need a local CLI working tree
-- all other flags are the standard `tiangong-lca search process` flags
-- internally it forwards to `tiangong-lca search process`
-- run `tiangong-lca auth status --json` before remote work; a human runs `auth login` when required
-- use a separate private `TIANGONG_LCA_SESSION_FILE` for each account/project/client context
-- headless automation may receive only a short-lived `TIANGONG_LCA_ACCESS_TOKEN` from an approved orchestrator secret path
-- never request, decode, print, or forward `TIANGONG_LCA_API_KEY`, a password, authorization code, access token, or refresh token
+Configure one matching project tuple through the environment or a local `.env` file:
 
-Model and embedding providers are configured in the deployed edge function.
+```text
+TIANGONG_LCA_API_BASE_URL=https://<your-project>.supabase.co/functions/v1
+TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY=<that-project-publishable-key>
+TIANGONG_LCA_OAUTH_CLIENT_ID=<that-project-registered-public-client-id>
+TIANGONG_LCA_OAUTH_REDIRECT_URI=http://127.0.0.1:49191/oauth/callback
+```
+
+The callback must be registered exactly. Partial custom settings and `--base-url` never inherit unrelated Production fields; known Production key/client values cannot target a foreign URL. Blank public settings and exact official URL aliases can use the CLI defaults. `TIANGONG_LCA_REGION` remains an optional region override.
+
+## Wrapper and session behavior
+
+- The individually installed skill bundles a byte-identical copy of `scripts/lib/cli-launcher.mjs`, the repository authority. It invokes the exact published CLI and supplies the packaged example input when none is given.
+- Local CLI execution is opt-in through `TIANGONG_LCA_CLI_DIR` or `--cli-dir`; no sibling checkout is discovered. `--published-cli` explicitly selects the published package.
+- Other flags are forwarded unchanged to `tiangong-lca search process`; the CLI owns authentication and refresh.
+- Run `tiangong-lca auth status --json` before remote work. If `login-required`, a human runs `auth login` in a trusted terminal; use `auth doctor-auth --json` for live redacted verification.
+- Use a separate private `TIANGONG_LCA_SESSION_FILE` per account/project/client context.
+- Headless automation requires an explicit target URL/publishable key and `TIANGONG_LCA_AUTH_MODE=access-token`; only an approved orchestrator may inject a short-lived `TIANGONG_LCA_ACCESS_TOKEN`. A token alone never selects Production; it is verified online, not persisted, and not refreshed.
+- Never request, decode, print, or forward passwords, authorization codes, access/refresh tokens, or legacy API keys in prompts, argv, logs, or artifacts.
+
+Model and embedding providers are configured in the deployed Edge Function.

@@ -31,13 +31,14 @@ for (const entity of ['flow', 'process', 'lifecyclemodel']) {
       const result = run();
       assert.ifError(result.error);
       assert.equal(result.status, 0, result.stderr || result.stdout);
-      const planned = JSON.parse(result.stdout);
+      assert.equal(JSON.parse(result.stdout).dryRun, true);
+      const planned = JSON.parse(result.stdout).request;
       assert.equal(planned.url, `https://qgzvkongdjqiiamzbbts.supabase.co/functions/v1/${entity}_hybrid_search`);
       assert.equal(planned.headers['x-region'], 'us-east-1');
       assert.equal(existsSync(sessionFile), false, 'dry-run must not create an OAuth session');
       assert.equal(existsSync(path.join(sandbox, 'scripts')), false, 'no repository launcher is installed');
       assert.equal(
-        readFileSync(path.join(installed, 'scripts', 'cli-launcher.mjs'), 'utf8'),
+        readFileSync(path.join(installed, 'scripts', 'lib', 'cli-launcher.mjs'), 'utf8'),
         readFileSync(path.join(repoRoot, 'scripts', 'lib', 'cli-launcher.mjs'), 'utf8'),
         'bundled launcher must remain byte-identical to the one repository authority',
       );

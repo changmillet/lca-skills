@@ -1,33 +1,39 @@
 # Testing
 
-## Preferred smoke test
+Run from the independently installed skill directory, without a CLI or Data Foundry checkout and without public environment variables.
+
+## Dry run (no login or network request)
+
 ```bash
-TIANGONG_LCA_API_BASE_URL="https://example.supabase.co/functions/v1" \
-TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY="<publishable-key>" \
-TIANGONG_LCA_OAUTH_CLIENT_ID="<public-oauth-client-id>" \
-node scripts/run-lifecyclemodel-hybrid-search.mjs
+node scripts/run-lifecyclemodel-hybrid-search.mjs --published-cli --dry-run --json
 ```
 
-## Dry run (request preview)
+Confirm the CLI's Production endpoint and region in the planned request. This must not create a session. A custom `--base-url` without its matching complete configuration must fail before network access.
+
+## Human login and read-only smoke
+
 ```bash
-TIANGONG_LCA_API_BASE_URL="https://example.supabase.co/functions/v1" \
-TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY="<publishable-key>" \
-TIANGONG_LCA_OAUTH_CLIENT_ID="<public-oauth-client-id>" \
-node scripts/run-lifecyclemodel-hybrid-search.mjs --dry-run
+pnpm dlx --package=@tiangong-lca/cli@0.1.8 tiangong-lca auth status --json
+```
+
+A fresh install reports `login-required` (exit 1). The human user then runs the pinned CLI's `auth login` in a trusted terminal and completes browser consent. Never ask an agent to collect a password, code, or token. After login:
+
+```bash
+pnpm dlx --package=@tiangong-lca/cli@0.1.8 tiangong-lca auth doctor-auth --json
+node scripts/run-lifecyclemodel-hybrid-search.mjs --published-cli --json
 ```
 
 ## Direct CLI equivalent
+
 ```bash
-tiangong-lca \
-  search lifecyclemodel \
-  --input ./assets/example-request.json \
-  --base-url "https://example.supabase.co/functions/v1" \
-  --dry-run
+pnpm dlx --package=@tiangong-lca/cli@0.1.8 tiangong-lca search lifecyclemodel --input ./assets/example-request.json --dry-run --json
 ```
 
-Use `TIANGONG_LCA_CLI_DIR=/path/to/tiangong-lca-cli node scripts/run-lifecyclemodel-hybrid-search.mjs ...` only when validating an unpublished local CLI working tree.
+Use `--cli-dir /path/to/tiangong-lca-cli` only for an explicitly selected matching local build. Custom environment setup is documented in `env.md`; it is not a Production prerequisite.
 
 ## Checklist
-- 200 response contains `data` (array, possibly empty).
-- 400 appears only when `query` is missing/invalid.
-- 500 indicates embedding provider or RPC failure (inspect Supabase logs).
+
+- A 200 response contains `data` (an array, possibly empty).
+- A 400 response indicates a missing or invalid query.
+- A 500 response indicates a provider/RPC failure; inspect service logs rather than changing the auth path.
+- No credential or session content appears in output or test artifacts.

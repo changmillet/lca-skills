@@ -18,9 +18,9 @@ checkPaths:
   - scripts/validate-skills.mjs
   - "*/SKILL.md"
   - "*/scripts/**"
-lastReviewedAt: 2026-09-01
-lastReviewedCommit: c05a70556c9c2222267b1cf54af72bf347ffa3a6
-lastReviewedNote: "Reviewed for Skills #89: active 远程 workflow 使用 OAuth-only handoff，并在 wrapper、CI、local override 与 headless fixture 中固定 published CLI 0.1.7 / immutable merge cb5be8f。"
+lastReviewedAt: 2026-09-02
+lastReviewedCommit: f34ab2442a8440e87c3810c11cccad325a19d681
+lastReviewedNote: "Reviewed for Skills #91: independently installed hybrid-search packages include a byte-checked launcher and use CLI-owned zero-config Production OAuth; custom/headless isolation and the verified release pin remain required."
 ---
 
 # 天工 LCA Skills
@@ -112,15 +112,17 @@ npx skills update --project --yes
 
 ## 远程认证
 
-远程 skill 统一使用 CLI 管理的 Supabase OAuth session。配置 `TIANGONG_LCA_API_BASE_URL`、`TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY` 和环境专属 public `TIANGONG_LCA_OAUTH_CLIENT_ID` 后运行：
+远程 skill 统一使用 CLI 管理的 Supabase OAuth session。官方 Production 不需要 public 环境变量、Dashboard 或额外索取 client ID；公开 URL/key/client/callback profile 由 CLI 唯一维护，Skills 不复制。先运行：
 
 ```bash
-tiangong-lca auth status --json
+pnpm dlx --package=@tiangong-lca/cli@0.1.8 tiangong-lca auth status --json
 ```
 
 若结果是 `login-required`，停止 agent workflow，把可信终端交给人类运行 `tiangong-lca auth login`。skill/agent 不得索取用户名、密码、authorization code、access token、refresh token 或旧编码 API key。账号敏感读取和 commit 前运行 `tiangong-lca auth doctor-auth --json`。
 
-每个 account/project/client 使用独立私有 `TIANGONG_LCA_SESSION_FILE`。批准的 headless 自动化只能由 orchestrator 通过 `TIANGONG_LCA_AUTH_MODE=access-token` 注入一个短期 `TIANGONG_LCA_ACCESS_TOKEN`；token 不得进入 argv、prompt、日志或产物。CLI 不再存在 legacy API-key 模式。
+只有自定义环境才需要完整匹配的 `TIANGONG_LCA_API_BASE_URL`、`TIANGONG_LCA_SUPABASE_PUBLISHABLE_KEY`、已注册的 `TIANGONG_LCA_OAUTH_CLIENT_ID` 及精确 callback；不完整配置不能混补 Production。每个 account/project/client 使用独立私有 `TIANGONG_LCA_SESSION_FILE`。批准的 headless 自动化必须显式配置目标 URL/key 和 `TIANGONG_LCA_AUTH_MODE=access-token`，再由 orchestrator 注入短期 `TIANGONG_LCA_ACCESS_TOKEN`；仅 token 不会默认指向 Production，也不得进入 argv、prompt、日志或产物。CLI 不再存在 legacy API-key 模式。
+
+三个 hybrid-search 技能目录可以独立安装：各自携带经过字节一致性校验的启动器和示例输入，不需要 Skills/CLI/Data Foundry checkout；认证仍完全由 CLI 负责。
 
 ## 校验
 
