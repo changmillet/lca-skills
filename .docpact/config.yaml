@@ -1,4 +1,5 @@
 version: 1
+# Skills #95: lca-topic-overview is a workflow-only package under existing skill/validation routes; the companion CLI capability check does not alter shared launcher ownership or the published pin.
 layout: repo
 # Release proof, 2026-09-02: Skills #91 pins verified CLI 0.1.8 / b4701984b4a86fe4680fa5995d0a0b6753dbdfd6; all three bundled launchers must remain byte-identical to their root authority.
 # Review note, 2026-09-02: Skills #91 adds self-contained, byte-checked launcher bundles for the three hybrid-search packages and CLI-owned Production bootstrap guidance under existing skill/validation/doc routes; no auth runtime ownership moves into Skills.
